@@ -1,0 +1,41 @@
+apiVersion: v1
+entries:
+  efficientai:
+  - annotations:
+      category: AI
+      licenses: MIT
+    apiVersion: v2
+    appVersion: 1.4.6
+    created: "2026-05-17T19:28:14.707499934Z"
+    dependencies:
+    - condition: postgresql.deploy
+      name: postgresql
+      repository: https://charts.bitnami.com/bitnami
+      version: 15.5.x
+    - condition: redis.deploy
+      name: redis
+      repository: https://charts.bitnami.com/bitnami
+      version: 20.x.x
+    description: A Helm chart for the EfficientAI Voice AI Evaluation Platform
+    digest: 53a72c3011700e133a1f24f2425447330e0e366ee53e74aa1d0230097de5a50d
+    home: https://github.com/EfficientAI-tech/efficientai-k8s
+    icon: https://raw.githubusercontent.com/EfficientAI-tech/efficientai-k8s/main/charts/efficientai/icon.png
+    keywords:
+    - voice-ai
+    - evaluation
+    - llm
+    - celery
+    - fastapi
+    kubeVersion: '>=1.23.0-0'
+    maintainers:
+    - name: EfficientAI
+      url: https://github.com/EfficientAI-tech
+    name: efficientai
+    sources:
+    - https://github.com/EfficientAI-tech/efficientAI
+    - https://github.com/EfficientAI-tech/efficientai-k8s
+    type: application
+    urls:
+    - https://github.com/EfficientAI-tech/efficientai-k8s/releases/download/efficientai-0.1.1/efficientai-0.1.1.tgz
+    version: 0.1.1
+generated: "2026-05-17T19:28:14.707505903Z"

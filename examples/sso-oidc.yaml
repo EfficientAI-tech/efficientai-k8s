@@ -1,0 +1,45 @@
+# Wire up external OIDC SSO (Okta / Azure AD / Google Workspace / Cognito / Auth0 / ...).
+# Requires an EfficientAI license with the `oidc_sso` feature.
+#
+#   kubectl create secret generic efficientai-oidc \
+#     --from-literal=AUTH_OIDC_ISSUER='https://example.okta.com' \
+#     --from-literal=AUTH_OIDC_AUDIENCE='efficientai' \
+#     --from-literal=AUTH_OIDC_CLIENT_ID='0oa...' \
+#     --from-literal=AUTH_OIDC_JWKS_URI='https://example.okta.com/oauth2/v1/keys' \
+#     --from-literal=AUTH_OIDC_DEFAULT_ORG_NAME='Example Inc' \
+#     --from-literal=AUTH_OIDC_ORG_CLAIM_PATH='https://efficientai.com/org'
+
+efficientai:
+  secretKey:
+    value: "change-me-openssl-rand-hex-32"
+
+  license:
+    secretKeyRef:
+      name: efficientai-license
+      key: jwt
+
+  # Append OIDC to the provider list; api_key + local_password remain available.
+  config:
+    auth:
+      providers:
+        - api_key
+        - local_password
+        - external_oidc
+
+  # Both web and worker may need OIDC envs depending on how the app reads them.
+  web:
+    additionalEnv:
+      - name: AUTH_PROVIDERS
+        value: "api_key,local_password,external_oidc"
+      - name: AUTH_OIDC_ISSUER
+        valueFrom: { secretKeyRef: { name: efficientai-oidc, key: AUTH_OIDC_ISSUER } }
+      - name: AUTH_OIDC_AUDIENCE
+        valueFrom: { secretKeyRef: { name: efficientai-oidc, key: AUTH_OIDC_AUDIENCE } }
+      - name: AUTH_OIDC_CLIENT_ID
+        valueFrom: { secretKeyRef: { name: efficientai-oidc, key: AUTH_OIDC_CLIENT_ID } }
+      - name: AUTH_OIDC_JWKS_URI
+        valueFrom: { secretKeyRef: { name: efficientai-oidc, key: AUTH_OIDC_JWKS_URI } }
+      - name: AUTH_OIDC_DEFAULT_ORG_NAME
+        valueFrom: { secretKeyRef: { name: efficientai-oidc, key: AUTH_OIDC_DEFAULT_ORG_NAME } }
+      - name: AUTH_OIDC_ORG_CLAIM_PATH
+        valueFrom: { secretKeyRef: { name: efficientai-oidc, key: AUTH_OIDC_ORG_CLAIM_PATH } }

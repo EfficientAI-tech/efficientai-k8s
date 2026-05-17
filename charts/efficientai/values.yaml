@@ -1,0 +1,377 @@
+# Default values for efficientai.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -----------------------------------------------------------------------------
+# Global settings shared with subcharts (Bitnami honors most of these).
+# -----------------------------------------------------------------------------
+global:
+  # Default StorageClass used for every PVC unless a component overrides it.
+  defaultStorageClass: ""
+  # Override the image registry used by the Bitnami subcharts.
+  # See README "Bitnami Registry Changes" note. Set to "bitnamilegacy" (or
+  # leave empty and let subchart defaults apply) post-Aug 2025 if not on
+  # Bitnami Secure Images.
+  imageRegistry: ""
+  imagePullSecrets: []
+  # Subchart Bitnami images are gated behind allowInsecureImages: true when
+  # using the bitnamilegacy registry.
+  security:
+    allowInsecureImages: true
+
+# Override the chart name/fullname.
+nameOverride: ""
+fullnameOverride: ""
+
+# =============================================================================
+# Application (efficientai) configuration
+# =============================================================================
+efficientai:
+  # ---------------------------------------------------------------------------
+  # App-wide secrets. Each accepts either an inline `value:` OR a `secretKeyRef`.
+  # When `secretKeyRef` is set, no key is emitted by templates/secret.yaml and
+  # the pod env var is wired directly to your user-managed secret.
+  # ---------------------------------------------------------------------------
+
+  # Required. Generate via: openssl rand -hex 32
+  secretKey:
+    value: ""
+    # secretKeyRef:
+    #   name: efficientai-app-secrets
+    #   key: SECRET_KEY
+
+  # Optional but strongly recommended. Generate via: openssl rand -hex 32
+  encryptionKey:
+    value: ""
+    # secretKeyRef:
+    #   name: efficientai-app-secrets
+    #   key: ENCRYPTION_KEY
+
+  # Optional. HuggingFace token for pyannote/speaker-diarization.
+  huggingfaceToken:
+    value: ""
+    # secretKeyRef:
+    #   name: efficientai-hf
+    #   key: token
+
+  # Optional. EfficientAI enterprise license JWT (unlocks gated features).
+  license:
+    value: ""
+    # secretKeyRef:
+    #   name: efficientai-license
+    #   key: jwt
+
+  # ---------------------------------------------------------------------------
+  # Container images
+  # ---------------------------------------------------------------------------
+  image:
+    registry: ghcr.io
+    pullPolicy: IfNotPresent
+    api:
+      repository: efficientai-tech/efficientai-api
+      tag: ""              # defaults to .Chart.AppVersion
+    worker:
+      repository: efficientai-tech/efficientai-worker
+      tag: ""              # defaults to .Chart.AppVersion
+
+  # ---------------------------------------------------------------------------
+  # ServiceAccount
+  # ---------------------------------------------------------------------------
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  # ---------------------------------------------------------------------------
+  # Application config rendered into /app/config.yml (mounted into all pods).
+  # Mirrors efficientAI/config.docker.yml. Connection URLs (database/redis) are
+  # injected automatically as env vars by the helpers and need not be set here.
+  # ---------------------------------------------------------------------------
+  config:
+    app:
+      name: "EfficientAI Voice AI Evaluation Platform"
+      debug: false
+    server:
+      host: "0.0.0.0"
+      port: 8000
+    storage:
+      upload_dir: "/app/uploads"
+      max_file_size_mb: 500
+      allowed_audio_formats:
+        - wav
+        - mp3
+        - flac
+        - m4a
+    cors:
+      origins:
+        - "http://localhost:3000"
+        - "http://localhost:8000"
+    api:
+      prefix: "/api/v1"
+      key_header: "X-API-Key"
+      rate_limit_per_minute: 60
+    auth:
+      providers:
+        - api_key
+        - local_password
+      local_password:
+        token_ttl_minutes: 720
+        allow_signup: true
+    diarization:
+      num_speakers: 2
+    judge_alignment:
+      enabled: true
+      csv_max_rows: 5000
+    # Observability config stub. Loki deployment is out of scope; set
+    # observability.loki.enabled=false unless an external Loki is reachable.
+    observability:
+      loki:
+        enabled: false
+        url: ""
+        storage: filesystem
+        multi_tenant: false
+        platform_tenant: "platform"
+
+  # ===========================================================================
+  # web (api) component
+  # ===========================================================================
+  web:
+    replicaCount: 1
+    command:
+      - eai
+      - start
+      - --config
+      - /app/config.yml
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --no-build-frontend
+      - --no-reload
+    service:
+      type: ClusterIP
+      port: 8000
+      annotations: {}
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      hosts:
+        - host: efficientai.local
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+    resources: {}
+    #  limits:    { cpu: "2", memory: "4Gi" }
+    #  requests:  { cpu: "1", memory: "2Gi" }
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: null
+    pdb:
+      enabled: false
+      minAvailable: 1
+      maxUnavailable: null
+    deployment:
+      strategy: {}
+      #  type: RollingUpdate
+      #  rollingUpdate:
+      #    maxSurge: 25%
+      #    maxUnavailable: 25%
+    pod:
+      annotations: {}
+      labels: {}
+      topologySpreadConstraints: []
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      securityContext: {}
+    containerSecurityContext: {}
+    hostAliases: []
+    additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
+    probes:
+      liveness:
+        httpGet:
+          path: /api/v1/health
+          port: 8000
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 6
+      readiness:
+        httpGet:
+          path: /api/v1/health
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+
+  # ===========================================================================
+  # worker (default queue) component
+  # ===========================================================================
+  worker:
+    replicaCount: 1
+    command:
+      - eai
+      - worker
+      - --config
+      - /app/config.yml
+      - --loglevel
+      - info
+    resources: {}
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    pdb:
+      enabled: false
+      minAvailable: 1
+    deployment:
+      strategy: {}
+    pod:
+      annotations: {}
+      labels: {}
+      topologySpreadConstraints: []
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      securityContext: {}
+    containerSecurityContext: {}
+    hostAliases: []
+    additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
+
+  # ===========================================================================
+  # worker-imports (dedicated `imports` queue) component
+  # ===========================================================================
+  workerImports:
+    enabled: true
+    replicaCount: 1
+    concurrency: 4
+    queues: imports
+    # Defaults to:
+    #   celery -A app.workers.celery_app worker --loglevel=info \
+    #          --queues=<queues> --concurrency=<concurrency>
+    #
+    # We call celery directly (rather than `eai worker --queues …
+    # --concurrency …`) so the queue/concurrency flags work across
+    # all efficientai-worker image versions. Celery picks up the broker
+    # URL from the CELERY_BROKER_URL env var the pod already exports.
+    #
+    # Override here to fully customize (must be a list of argv strings).
+    command: []
+    resources: {}
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    deployment:
+      strategy: {}
+    pod:
+      annotations: {}
+      labels: {}
+      topologySpreadConstraints: []
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      securityContext: {}
+    containerSecurityContext: {}
+    hostAliases: []
+    additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
+
+# =============================================================================
+# postgresql (Bitnami subchart) — toggleable via `deploy:`
+#
+# NOTE: image.registry defaults to `bitnamilegacy` because (per Aug 2025
+# Bitnami restructure) the free `docker.io/bitnami/*` images were removed.
+# Override to `bitnami` only if you have a Bitnami Secure Images subscription.
+# =============================================================================
+postgresql:
+  deploy: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+  # When deploy=false, set host (and optionally port) to point at an external PG.
+  host: ""
+  port: 5432
+  auth:
+    username: efficientai
+    database: efficientai
+    # Either set `password:` here (rendered into the in-chart secret) OR
+    # `existingSecret:` to source from a user-managed secret.
+    password: ""
+    existingSecret: ""
+    secretKeys:
+      userPasswordKey: password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+      storageClass: ""
+
+# =============================================================================
+# redis (Bitnami subchart) — toggleable via `deploy:`
+#
+# NOTE: image.registry defaults to `bitnamilegacy` for the same reason as
+# postgresql above.
+# =============================================================================
+redis:
+  deploy: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis
+  # Used when deploy=false (standalone external Redis).
+  host: ""
+  port: 6379
+  architecture: standalone
+  auth:
+    enabled: false
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+      storageClass: ""
+  # Cluster mode is external-only (deploy must be false).
+  cluster:
+    enabled: false
+    nodes: []
+    #  - redis-node-1:6379
+    #  - redis-node-2:6379
+  tls:
+    enabled: false
+
+# =============================================================================
+# s3 — external blob storage configuration
+# (efficientai talks to S3 directly; no in-cluster minio is provisioned.)
+# =============================================================================
+s3:
+  enabled: true
+  bucket: "voiceai-evals-test"
+  region: "us-east-1"
+  endpoint: ""              # leave empty for AWS S3; set for MinIO/R2/etc.
+  forcePathStyle: false
+  prefix: "audio/"
+  accessKeyId:
+    value: ""
+    # secretKeyRef:
+    #   name: efficientai-s3
+    #   key: AWS_ACCESS_KEY_ID
+  secretAccessKey:
+    value: ""
+    # secretKeyRef:
+    #   name: efficientai-s3
+    #   key: AWS_SECRET_ACCESS_KEY

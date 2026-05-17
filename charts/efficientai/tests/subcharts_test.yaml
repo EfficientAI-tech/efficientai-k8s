@@ -1,0 +1,89 @@
+suite: subchart toggles & ConfigMap
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: renders a ConfigMap that never contains secrets or connection URLs
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.huggingfaceToken.value: "hf_x"
+      efficientai.license.value: "jwt"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      # Connection URLs MUST NOT be in the ConfigMap — they're env-only.
+      # Use line-anchored matches so we don't false-match the documentation
+      # comment block at the top.
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^database:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^celery:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+broker_url:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+url:\s+\$\{REDIS_URL\}'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+url:\s+\$\{DATABASE_URL\}'
+      # Sensitive values must not leak either.
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+secret_key:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+huggingface_token:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^license:'
+
+  - it: includes s3 bucket/region/endpoint/prefix when s3.enabled
+    set:
+      efficientai.secretKey.value: "x"
+      s3.enabled: true
+      s3.bucket: "my-bucket"
+      s3.region: "us-west-2"
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'bucket_name: my-bucket'
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'region: us-west-2'
+      # Credentials must NOT be rendered into config — they're env-only.
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+access_key_id:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+secret_access_key:'
+
+  - it: marks s3 disabled when s3.enabled is false
+    set:
+      efficientai.secretKey.value: "x"
+      s3.enabled: false
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'enabled: false'
+
+  - it: strips any secrets users mistakenly put under efficientai.config
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.config.app.secret_key: "should-be-stripped"
+      efficientai.config.diarization.huggingface_token: "should-be-stripped"
+      efficientai.config.database.url: "postgresql://nope"
+    asserts:
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+secret_key:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^\s+huggingface_token:'
+      - notMatchRegex:
+          path: data["config.yml"]
+          pattern: '(?m)^database:'

@@ -1,0 +1,110 @@
+{{- $component := "web" -}}
+{{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  {{- if not .Values.efficientai.web.autoscaling.enabled }}
+  replicas: {{ .Values.efficientai.web.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  {{- with .Values.efficientai.web.deployment.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- with .Values.efficientai.web.pod.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.efficientai.web.pod.annotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "efficientai.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.efficientai.web.pod.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.efficientai.web.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.efficientai.web.pod.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.efficientai.web.pod.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.efficientai.web.pod.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.efficientai.web.pod.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web
+          image: {{ include "efficientai.image" (dict "root" . "type" "api") | quote }}
+          imagePullPolicy: {{ .Values.efficientai.image.pullPolicy }}
+          {{- with .Values.efficientai.web.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            {{- toYaml .Values.efficientai.web.command | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
+            {{- include "efficientai.redis.envBlock" . | nindent 12 }}
+            {{- include "efficientai.appEnvBlock" . | nindent 12 }}
+            {{- with .Values.efficientai.web.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yml
+              subPath: config.yml
+              readOnly: true
+            {{- with .Values.efficientai.web.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.efficientai.web.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.efficientai.web.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.efficientai.web.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "efficientai.fullname" . }}-config
+        {{- with .Values.efficientai.web.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

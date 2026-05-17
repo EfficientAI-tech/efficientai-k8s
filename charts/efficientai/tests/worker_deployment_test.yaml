@@ -1,0 +1,62 @@
+suite: worker deployments
+templates:
+  - templates/worker/deployment.yaml
+  - templates/worker-imports/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders the worker deployment with worker image and command
+    template: templates/worker/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^ghcr.io/efficientai-tech/efficientai-worker:.+"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --loglevel
+
+  - it: renders the worker-imports deployment invoking celery with --queues/--concurrency by default
+    template: templates/worker-imports/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: celery
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: app.workers.celery_app
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --queues=imports
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --concurrency=4
+
+  - it: respects custom workerImports.concurrency and queues
+    template: templates/worker-imports/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.concurrency: 8
+      efficientai.workerImports.queues: "imports,heavy"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--queues=imports,heavy"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--concurrency=8"
+
+  - it: omits worker-imports deployment when disabled
+    template: templates/worker-imports/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,42 @@
+# AWS Application Load Balancer Controller ingress with optional redirect.
+# Requires the aws-load-balancer-controller installed in the cluster.
+
+efficientai:
+  secretKey:
+    value: "change-me-openssl-rand-hex-32"
+  web:
+    ingress:
+      enabled: true
+      className: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+        alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789012:certificate/abcdef-1234-5678
+        # Optional redirect action (referenced via the custom backend below).
+        alb.ingress.kubernetes.io/actions.redirect-to-prod: |
+          {
+            "type": "redirect",
+            "redirectConfig": {
+              "protocol": "HTTPS",
+              "port": "443",
+              "host": "efficientai.example.com",
+              "statusCode": "HTTP_301"
+            }
+          }
+      hosts:
+        # Main host -> default backend (the web Service).
+        - host: efficientai.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+        # Legacy host -> custom backend (no Service; uses ALB action annotation).
+        - host: efficientai-legacy.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: redirect-to-prod
+                  port:
+                    name: use-annotation

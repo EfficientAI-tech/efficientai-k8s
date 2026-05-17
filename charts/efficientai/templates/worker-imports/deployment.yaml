@@ -1,0 +1,108 @@
+{{- if .Values.efficientai.workerImports.enabled -}}
+{{- $component := "worker-imports" -}}
+{{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
+{{- $wi := .Values.efficientai.workerImports -}}
+{{- /* We invoke celery directly (rather than `eai worker`) so the --queues
+       and --concurrency flags work across all app versions. `eai worker`
+       just shells out to celery internally, and celery picks up the broker
+       URL from the CELERY_BROKER_URL env var that the pod already exports. */ -}}
+{{- $defaultCmd := list "celery" "-A" "app.workers.celery_app" "worker" "--loglevel=info" (printf "--queues=%s" (default "imports" $wi.queues)) (printf "--concurrency=%d" (int (default 4 $wi.concurrency))) -}}
+{{- $cmd := default $defaultCmd $wi.command -}}
+{{- if eq (len $wi.command) 0 -}}{{- $cmd = $defaultCmd -}}{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  {{- if not $wi.autoscaling.enabled }}
+  replicas: {{ $wi.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  {{- with $wi.deployment.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- with $wi.pod.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with $wi.pod.annotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "efficientai.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $wi.pod.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $wi.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $wi.pod.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $wi.pod.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $wi.pod.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $wi.pod.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker-imports
+          image: {{ include "efficientai.image" (dict "root" . "type" "worker") | quote }}
+          imagePullPolicy: {{ .Values.efficientai.image.pullPolicy }}
+          {{- with $wi.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            {{- toYaml $cmd | nindent 12 }}
+          env:
+            {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
+            {{- include "efficientai.redis.envBlock" . | nindent 12 }}
+            {{- include "efficientai.appEnvBlock" . | nindent 12 }}
+            {{- with $wi.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yml
+              subPath: config.yml
+              readOnly: true
+            {{- with $wi.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $wi.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "efficientai.fullname" . }}-config
+        {{- with $wi.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}

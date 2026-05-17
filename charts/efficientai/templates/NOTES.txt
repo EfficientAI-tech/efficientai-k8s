@@ -1,0 +1,45 @@
+Thanks for installing {{ .Chart.Name }} {{ .Chart.Version }} (app {{ .Chart.AppVersion }}).
+
+Release      : {{ .Release.Name }}
+Namespace    : {{ .Release.Namespace }}
+
+Components deployed:
+  - web (api)            : Deployment "{{ include "efficientai.componentFullname" (dict "root" . "component" "web") }}"
+  - worker               : Deployment "{{ include "efficientai.componentFullname" (dict "root" . "component" "worker") }}"
+{{- if .Values.efficientai.workerImports.enabled }}
+  - worker-imports       : Deployment "{{ include "efficientai.componentFullname" (dict "root" . "component" "worker-imports") }}"
+{{- end }}
+{{- if .Values.postgresql.deploy }}
+  - postgresql (subchart): {{ .Release.Name }}-postgresql
+{{- else }}
+  - postgresql (external): {{ .Values.postgresql.host }}:{{ .Values.postgresql.port | default 5432 }}
+{{- end }}
+{{- if .Values.redis.deploy }}
+  - redis (subchart)     : {{ .Release.Name }}-redis-master
+{{- else if .Values.redis.cluster.enabled }}
+  - redis (external cluster, {{ len .Values.redis.cluster.nodes }} nodes)
+{{- else }}
+  - redis (external)     : {{ .Values.redis.host }}:{{ .Values.redis.port | default 6379 }}
+{{- end }}
+
+{{- if .Values.efficientai.web.ingress.enabled }}
+
+Ingress hosts:
+{{- range .Values.efficientai.web.ingress.hosts }}
+  - http{{ if $.Values.efficientai.web.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+The api is reachable inside the cluster at:
+  {{ include "efficientai.componentFullname" (dict "root" . "component" "web") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.efficientai.web.service.port }}
+
+To reach it from your machine:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "efficientai.componentFullname" (dict "root" . "component" "web") }} 8000:{{ .Values.efficientai.web.service.port }}
+  open http://localhost:8000
+{{- end }}
+
+{{- if not (or (include "efficientai.hasInlineValue" .Values.efficientai.secretKey) (and .Values.efficientai.secretKey.secretKeyRef .Values.efficientai.secretKey.secretKeyRef.name)) }}
+
+WARNING: efficientai.secretKey is empty. Generate one and re-run helm upgrade:
+  openssl rand -hex 32
+{{- end }}

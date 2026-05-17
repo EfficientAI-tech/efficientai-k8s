@@ -1,0 +1,43 @@
+{{- if .Values.efficientai.web.ingress.enabled -}}
+{{- $component := "web" -}}
+{{- $fullName := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
+{{- $svcPort := .Values.efficientai.web.service.port -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  {{- with .Values.efficientai.web.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.efficientai.web.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.efficientai.web.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.efficientai.web.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              {{- if .backend }}
+              {{- toYaml .backend | nindent 14 }}
+              {{- else }}
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $svcPort }}
+              {{- end }}
+          {{- end }}
+    {{- end }}
+{{- end }}

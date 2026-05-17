@@ -1,0 +1,34 @@
+{{- if .Values.efficientai.web.autoscaling.enabled -}}
+{{- $component := "web" -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "efficientai.componentFullname" (dict "root" . "component" $component) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "efficientai.componentFullname" (dict "root" . "component" $component) }}
+  minReplicas: {{ .Values.efficientai.web.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.efficientai.web.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.efficientai.web.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.efficientai.web.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.efficientai.web.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.efficientai.web.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

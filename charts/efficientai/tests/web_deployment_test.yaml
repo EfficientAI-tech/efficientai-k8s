@@ -1,0 +1,106 @@
+suite: web deployment
+templates:
+  - templates/web/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders one deployment with the api image and correct command
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: web
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^ghcr.io/efficientai-tech/efficientai-api:.+"
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: eai
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: start
+
+  - it: wires SECRET_KEY env via in-chart secret when inline value is set
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "abc"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-efficientai-secrets
+                key: SECRET_KEY
+
+  - it: wires SECRET_KEY env via user-managed secret when secretKeyRef is set
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey:
+        secretKeyRef:
+          name: my-app-secrets
+          key: SECRET_KEY
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: my-app-secrets
+                key: SECRET_KEY
+
+  - it: applies additionalEnv pass-through
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.web.additionalEnv:
+        - name: CUSTOM_FLAG
+          value: "1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CUSTOM_FLAG
+            value: "1"
+
+  - it: omits replicas when autoscaling is enabled
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.web.autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: uses postgres subchart host when postgresql.deploy is true
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.deploy: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_HOST
+            value: RELEASE-NAME-postgresql
+
+  - it: uses external postgres host when postgresql.deploy is false
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.deploy: false
+      postgresql.host: my-pg.example.com
+      postgresql.auth.existingSecret: my-pg-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_HOST
+            value: my-pg.example.com

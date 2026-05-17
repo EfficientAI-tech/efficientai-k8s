@@ -1,0 +1,35 @@
+# Use an external Redis instead of the in-cluster Bitnami subchart.
+
+efficientai:
+  secretKey:
+    value: "change-me-openssl-rand-hex-32"
+
+# -----------------------------------------------------------------------------
+# Option A: Standalone external Redis (single host).
+# -----------------------------------------------------------------------------
+redis:
+  deploy: false
+  host: my-redis.example.com
+  port: 6379
+  auth:
+    enabled: true
+    existingSecret: efficientai-redis-auth
+    existingSecretPasswordKey: password
+
+# -----------------------------------------------------------------------------
+# Option B: Redis Cluster (e.g. AWS ElastiCache with configuration endpoint).
+# Cluster mode requires `redis.deploy: false`.
+# -----------------------------------------------------------------------------
+#
+# redis:
+#   deploy: false
+#   cluster:
+#     enabled: true
+#     nodes:
+#       - "clustercfg.my-redis-cluster.abc123.cache.amazonaws.com:6379"
+#   auth:
+#     enabled: true
+#     existingSecret: efficientai-redis-auth
+#     existingSecretPasswordKey: password
+#   tls:
+#     enabled: true

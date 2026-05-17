@@ -1,0 +1,51 @@
+# Spread web and worker pods across zones (and hosts within a zone) for
+# better availability.
+
+efficientai:
+  secretKey:
+    value: "change-me-openssl-rand-hex-32"
+
+  web:
+    replicaCount: 3
+    pdb:
+      enabled: true
+      minAvailable: 2
+    pod:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: web
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: web
+
+  worker:
+    replicaCount: 3
+    pdb:
+      enabled: true
+      minAvailable: 1
+    pod:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+
+  workerImports:
+    replicaCount: 2
+    pod:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker-imports

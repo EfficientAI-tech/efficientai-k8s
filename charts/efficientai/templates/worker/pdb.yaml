@@ -1,0 +1,15 @@
+{{- if .Values.efficientai.worker.pdb.enabled -}}
+{{- $component := "worker" -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "efficientai.componentFullname" (dict "root" . "component" $component) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.efficientai.worker.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+{{- end }}

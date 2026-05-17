@@ -1,0 +1,59 @@
+# Connect to an externally-managed Postgres (RDS / Cloud SQL / etc.).
+#
+# Steps:
+#   1. Create a secret with the password:
+#        kubectl create secret generic efficientai-postgres \
+#          --from-literal=password='REDACTED'
+#   2. helm install dev efficientai/efficientai -f examples/external-postgres.yaml
+
+efficientai:
+  secretKey:
+    value: "change-me-openssl-rand-hex-32"
+
+postgresql:
+  deploy: false
+  host: my-managed-postgres.example.com
+  port: 5432
+  auth:
+    username: efficientai
+    database: efficientai
+    existingSecret: efficientai-postgres
+    secretKeys:
+      userPasswordKey: password
+
+# -----------------------------------------------------------------------------
+# Alternative: external Postgres with TLS / client certs.
+# Mount certs as a Secret and override DATABASE_URL via additionalEnv.
+# -----------------------------------------------------------------------------
+#
+# efficientai:
+#   web:
+#     extraVolumes:
+#       - name: db-certs
+#         secret:
+#           secretName: efficientai-postgres-certs   # server-ca.pem, sslidentity.pk12
+#     extraVolumeMounts:
+#       - name: db-certs
+#         mountPath: /secrets/db-keystore
+#         readOnly: true
+#     additionalEnv:
+#       - name: DATABASE_URL
+#         valueFrom:
+#           secretKeyRef:
+#             name: efficientai-postgres-certs
+#             key: database-url
+#   worker:
+#     extraVolumes:
+#       - name: db-certs
+#         secret:
+#           secretName: efficientai-postgres-certs
+#     extraVolumeMounts:
+#       - name: db-certs
+#         mountPath: /secrets/db-keystore
+#         readOnly: true
+#     additionalEnv:
+#       - name: DATABASE_URL
+#         valueFrom:
+#           secretKeyRef:
+#             name: efficientai-postgres-certs
+#             key: database-url

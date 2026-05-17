@@ -1,0 +1,19 @@
+{{- if .Values.efficientai.web.pdb.enabled -}}
+{{- $component := "web" -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "efficientai.componentFullname" (dict "root" . "component" $component) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  {{- if .Values.efficientai.web.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.efficientai.web.pdb.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ .Values.efficientai.web.pdb.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+{{- end }}

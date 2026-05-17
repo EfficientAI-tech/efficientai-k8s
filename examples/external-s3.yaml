@@ -1,0 +1,25 @@
+# Configure an external S3 bucket (AWS S3, MinIO, R2, etc.).
+#
+#   kubectl create secret generic efficientai-s3 \
+#     --from-literal=AWS_ACCESS_KEY_ID='AKIA...' \
+#     --from-literal=AWS_SECRET_ACCESS_KEY='REDACTED'
+
+efficientai:
+  secretKey:
+    value: "change-me-openssl-rand-hex-32"
+
+s3:
+  enabled: true
+  bucket: efficientai-prod-evals
+  region: eu-west-1
+  endpoint: ""              # leave empty for AWS S3; e.g. "https://s3.eu-west-1.amazonaws.com" for explicit
+  forcePathStyle: false
+  prefix: "audio/"
+  accessKeyId:
+    secretKeyRef:
+      name: efficientai-s3
+      key: AWS_ACCESS_KEY_ID
+  secretAccessKey:
+    secretKeyRef:
+      name: efficientai-s3
+      key: AWS_SECRET_ACCESS_KEY

@@ -36,8 +36,29 @@ jobs:
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo update
 
+      # chart-releaser-action requires the gh-pages branch to already exist;
+      # bootstrap it on first run so the action doesn't fail with
+      # `fatal: invalid reference: origin/gh-pages`.
+      - name: Ensure gh-pages branch exists
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "gh-pages branch already exists, nothing to do."
+            exit 0
+          fi
+          echo "Creating empty gh-pages branch..."
+          git worktree add --orphan -b gh-pages /tmp/gh-pages
+          pushd /tmp/gh-pages >/dev/null
+          git rm -rf . >/dev/null 2>&1 || true
+          printf '# EfficientAI Helm chart repository\n\nServed by [chart-releaser](https://github.com/helm/chart-releaser-action) over GitHub Pages.\n' > README.md
+          git add README.md
+          git commit -m "Initialize gh-pages branch"
+          git push origin gh-pages
+          popd >/dev/null
+          git worktree remove /tmp/gh-pages
+
       - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
+        uses: helm/chart-releaser-action@v1.7.0
         with:
           charts_dir: charts
           skip_existing: true

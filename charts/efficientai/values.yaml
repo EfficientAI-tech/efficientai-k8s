@@ -95,6 +95,7 @@ efficientai:
       host: "0.0.0.0"
       port: 8000
     storage:
+      blob_provider: s3
       upload_dir: "/app/uploads"
       max_file_size_mb: 500
       allowed_audio_formats:
@@ -375,3 +376,15 @@ s3:
     # secretKeyRef:
     #   name: efficientai-s3
     #   key: AWS_SECRET_ACCESS_KEY
+
+# =============================================================================
+# gcs — external Google Cloud Storage blob storage configuration
+#
+# For GKE, prefer Workload Identity / Application Default Credentials instead of
+# mounting JSON key files. Set `s3.enabled=false` and `gcs.enabled=true`.
+# =============================================================================
+gcs:
+  enabled: false
+  bucket: ""
+  projectId: ""
+  prefix: "audio/"

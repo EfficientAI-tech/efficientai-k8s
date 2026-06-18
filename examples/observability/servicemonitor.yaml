@@ -1,0 +1,22 @@
+# Prometheus scrape config for EfficientAI web /metrics.
+# Applied by: make observability-servicemonitor
+#
+# If Helm release name is not "efficientai", edit app.kubernetes.io/instance below.
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: efficientai-web
+  namespace: efficientai
+  labels:
+    release: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: efficientai
+      app.kubernetes.io/instance: efficientai
+      app.kubernetes.io/component: web
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

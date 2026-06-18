@@ -5,7 +5,8 @@ Helm chart for deploying [EfficientAI](https://github.com/EfficientAI-tech/effic
 ## Repository Structure
 
 - `charts/efficientai` — the Helm chart (umbrella with Postgres + Redis as Bitnami subcharts).
-- `examples/` — ready-to-pass `values` overlays (external Postgres, external Redis incl. cluster mode, external S3, ALB ingress, SSO/OIDC, topology spread).
+- `examples/` — values overlays and manifests; see [`examples/README.md`](examples/README.md) for the index.
+- `docs/` — deployment guides (GKE with GCS and Prometheus/Grafana).
 - `.github/workflows/` — lint/test on PRs and chart-releaser publish to GitHub Pages on `main`.
 
 ## Important: Bitnami Registry Changes
@@ -77,8 +78,11 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 | Plain config (`app.debug`, `cors.origins`, `auth.providers`, `judge_alignment.*`, `storage.*`, `diarization.num_speakers`, `observability.loki.*`, ...) | `efficientai.config.*` (same nested shape as `config.yml`) | Verbatim in the ConfigMap |
 | `DATABASE_URL` | `postgresql.*` (in-cluster) or `postgresql.deploy: false` + `host` (external) | Env var: built from `POSTGRES_USER`/`PASSWORD`/`HOST`/`PORT`/`DB`. **Not** written to `config.yml`. |
 | `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` | `redis.*` (in-cluster) or `redis.deploy: false` + `host` / `cluster.nodes` | Env vars: built from `REDIS_HOST`/`PORT`/auth. **Not** written to `config.yml`. |
+| `storage.blob_provider` | `s3.enabled` / `gcs.enabled` | Rendered into the ConfigMap (`s3` by default, `gcs` when GCS is enabled) |
 | `s3.bucket_name` / `region` / `endpoint_url` / `prefix` | `s3.bucket` / `region` / `endpoint` / `prefix` | Rendered into the ConfigMap |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | `s3.accessKeyId` / `s3.secretAccessKey` (`value:` OR `secretKeyRef:`) | Env vars sourced from the chart-managed Secret (inline `value:`) or your Secret (`secretKeyRef:`). **Not** written to `config.yml`. |
+| `gcs.bucket_name` / `project_id` / `prefix` | `gcs.bucket` / `gcs.projectId` / `gcs.prefix` | Rendered into the ConfigMap |
+| `BLOB_STORAGE_PROVIDER` / `GCS_ENABLED` / `GCS_BUCKET_NAME` / `GCS_PROJECT_ID` / `GCS_PREFIX` | `gcs.*` | Env vars; use GKE Workload Identity / Application Default Credentials for auth. |
 | `SECRET_KEY` | `efficientai.secretKey` | Env var (chart Secret or your Secret) |
 | `ENCRYPTION_KEY` | `efficientai.encryptionKey` | Env var (chart Secret or your Secret) |
 | `HUGGINGFACE_TOKEN` | `efficientai.huggingfaceToken` | Env var (chart Secret or your Secret) |
@@ -142,19 +146,38 @@ redis:
 
 ### Examples
 
-Every example in `examples/` is a complete `values` overlay you can pass with `-f`:
+Every example in `examples/` is a values overlay or manifest. See [`examples/README.md`](examples/README.md) for the full index.
 
 | File | What it demonstrates |
 |---|---|
 | `external-postgres.yaml` | `postgresql.deploy: false`, external host, existingSecret, plus optional TLS / client cert via `extraVolumes` + `additionalEnv` |
 | `external-redis.yaml` | External standalone Redis and external Redis Cluster (e.g. AWS ElastiCache config endpoint) |
 | `external-s3.yaml` | External S3 bucket with credentials sourced via `secretKeyRef` |
+| `gke/values-gcs.yaml` | GKE + GCS via Workload Identity, observability config, GCE Ingress |
 | `ingress-alb.yaml` | AWS Load Balancer Controller with redirect action and custom per-host backend |
 | `sso-oidc.yaml` | External OIDC SSO (Okta-style) wired through `efficientai.web.additionalEnv` |
 | `topology-spread.yaml` | Zone- and host-aware spread constraints for `web`, `worker`, and `workerImports` |
 
 ```bash
 helm install efficientai charts/efficientai -f examples/external-postgres.yaml
+```
+
+### GKE with GCS and observability (Prometheus + Grafana)
+
+See **[`docs/gke-gcs-observability.md`](docs/gke-gcs-observability.md)** for the full guide. Summary:
+
+```bash
+make observability-install
+make observability-servicemonitor
+
+cp examples/gke/values-gcs.yaml my-gke-values.yaml   # customize domains, project, bucket
+helm upgrade --install efficientai charts/efficientai -n efficientai -f my-gke-values.yaml --wait
+
+make observability-grafana-expose   # optional: public Grafana URL
+helm upgrade kube-prometheus prometheus-community/kube-prometheus-stack \
+  -n observability -f examples/observability/kube-prometheus-stack.yaml
+
+# Import EfficientAI dashboards from the main app repo (observability/grafana/dashboards/)
 ```
 
 ### Custom Storage Class

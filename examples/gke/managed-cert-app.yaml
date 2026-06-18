@@ -1,0 +1,16 @@
+# Google-managed TLS certificate for the EfficientAI app hostname.
+# Replace gcp.example.com with your APP_DOMAIN before applying.
+#
+# Apply:
+#   kubectl apply -f examples/gke/managed-cert-app.yaml
+#
+# Do NOT add the Grafana hostname here — use grafana-gcp-cert in examples/gke/grafana-proxy.yaml
+
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: efficientai-gcp-cert
+  namespace: efficientai
+spec:
+  domains:
+    - gcp.example.com

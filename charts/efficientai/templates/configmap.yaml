@@ -47,9 +47,16 @@ data:
     {{- $_    = set $cfg "diarization" $dia }}
     {{- end }}
 
+    {{- if and .Values.s3.enabled .Values.gcs.enabled }}
+    {{- fail "Only one blob storage provider can be enabled: set either s3.enabled=true or gcs.enabled=true, not both" }}
+    {{- end }}
+
+    {{- $storage := default (dict) (get $cfg "storage") }}
+
     {{- /* s3 (voice recording blob storage) — bucket/region/endpoint/prefix only.
            Credentials come from env vars (S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY). */ -}}
     {{- if .Values.s3.enabled }}
+    {{- $_ := set $storage "blob_provider" "s3" }}
     {{- $s3 := dict
         "enabled"      true
         "bucket_name"  .Values.s3.bucket
@@ -61,5 +68,22 @@ data:
     {{- else }}
     {{- $_ := set $cfg "s3" (dict "enabled" false) }}
     {{- end }}
+
+    {{- /* gcs (Google Cloud Storage blob storage) — credentials are provided by
+           Workload Identity / Application Default Credentials in GKE. */ -}}
+    {{- if .Values.gcs.enabled }}
+    {{- $_ := set $storage "blob_provider" "gcs" }}
+    {{- $gcs := dict
+        "enabled"     true
+        "bucket_name" (required "gcs.bucket is required when gcs.enabled=true" .Values.gcs.bucket)
+        "project_id"  (required "gcs.projectId is required when gcs.enabled=true" .Values.gcs.projectId)
+        "prefix"      .Values.gcs.prefix
+    }}
+    {{- $_ := set $cfg "gcs" $gcs }}
+    {{- else }}
+    {{- $_ := set $cfg "gcs" (dict "enabled" false) }}
+    {{- end }}
+
+    {{- $_ := set $cfg "storage" $storage }}
 
     {{- toYaml $cfg | nindent 4 }}

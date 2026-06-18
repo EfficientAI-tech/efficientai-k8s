@@ -1,0 +1,98 @@
+# GKE Helm values: GCS + Workload Identity + observability + GCE Ingress.
+#
+# Guide: docs/gke-gcs-observability.md
+#
+#   cp examples/gke/values-gcs.yaml my-values.yaml
+#   make observability-install && make observability-servicemonitor
+#   helm upgrade --install efficientai charts/efficientai -n efficientai -f my-values.yaml --wait
+
+global:
+  defaultStorageClass: standard-rwo
+
+efficientai:
+  image:
+    api:
+      tag: "1.5.7"
+    worker:
+      tag: "1.5.7"
+
+  secretKey:
+    secretKeyRef:
+      name: efficientai-app-secrets
+      key: SECRET_KEY
+  encryptionKey:
+    secretKeyRef:
+      name: efficientai-app-secrets
+      key: ENCRYPTION_KEY
+
+  serviceAccount:
+    create: true
+    annotations:
+      iam.gke.io/gcp-service-account: efficientai-gcs@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+  config:
+    storage:
+      blob_provider: gcs
+    cors:
+      origins:
+        - "https://gcp.example.com"
+    observability:
+      enabled: true
+      loki:
+        enabled: true
+        url: "http://loki.observability.svc.cluster.local:3100"
+
+  license:
+    secretKeyRef:
+      name: efficientai-license
+      key: jwt
+
+  web:
+    replicaCount: 1
+    service:
+      type: NodePort
+    ingress:
+      enabled: true
+      className: ""
+      annotations:
+        kubernetes.io/ingress.class: gce
+        kubernetes.io/ingress.global-static-ip-name: efficientai-ip
+        networking.gke.io/managed-certificates: efficientai-gcp-cert
+      hosts:
+        - host: gcp.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+
+  worker:
+    replicaCount: 1
+
+s3:
+  enabled: false
+
+gcs:
+  enabled: true
+  bucket: YOUR_GCS_BUCKET
+  projectId: YOUR_PROJECT_ID
+  prefix: audio/
+
+postgresql:
+  deploy: true
+  auth:
+    existingSecret: efficientai-postgres
+    secretKeys:
+      userPasswordKey: password
+  primary:
+    persistence:
+      size: 50Gi
+      storageClass: standard-rwo
+
+redis:
+  deploy: true
+  auth:
+    enabled: true
+    existingSecret: efficientai-redis
+    existingSecretPasswordKey: password
+  primary:
+    persistence:
+      size: 8Gi

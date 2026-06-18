@@ -1,0 +1,32 @@
+# Optional Helm overlay: Grafana hostname on the same GCE Ingress as the app.
+#
+# Use instead of: kubectl apply -f examples/gke/ingress-grafana.yaml
+#
+# Prerequisites: kubectl apply -f examples/gke/grafana-proxy.yaml
+#
+#   helm upgrade --install efficientai charts/efficientai -n efficientai \
+#     -f examples/gke/values-gcs.yaml \
+#     -f examples/gke/values-grafana-ingress.yaml \
+#     --wait
+
+efficientai:
+  web:
+    ingress:
+      annotations:
+        kubernetes.io/ingress.class: gce
+        kubernetes.io/ingress.global-static-ip-name: efficientai-ip
+        networking.gke.io/managed-certificates: efficientai-gcp-cert,grafana-gcp-cert
+      hosts:
+        - host: gcp.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+        - host: grafana.gcp.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: grafana-proxy
+                  port:
+                    number: 80

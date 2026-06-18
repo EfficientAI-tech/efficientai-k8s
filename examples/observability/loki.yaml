@@ -1,0 +1,30 @@
+# Loki Helm values (grafana/loki-stack). Service URL:
+#   http://loki.observability.svc.cluster.local:3100
+#
+# Installed by: make observability-install
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# EfficientAI pushes logs via the app SDK — Promtail not required.
+promtail:
+  enabled: false
+
+# Grafana comes from kube-prometheus-stack.
+grafana:
+  enabled: false
+  sidecar:
+    datasources:
+      enabled: false
+    dashboards:
+      enabled: false

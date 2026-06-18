@@ -1,0 +1,115 @@
+# Nginx proxy + Grafana ManagedCertificate for public Grafana on GKE.
+#
+# Replaces a separate Ingress in observability (same static IP causes IP conflicts).
+# Apply via: make observability-grafana-expose
+#
+# Replace grafana.gcp.example.com with your GRAFANA_DOMAIN before applying.
+# Guide: docs/gke-gcs-observability.md
+
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: grafana-gcp-cert
+  namespace: efficientai
+spec:
+  domains:
+    - grafana.gcp.example.com
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-proxy-config
+  namespace: efficientai
+data:
+  default.conf: |
+    server {
+      listen 8080;
+
+      location /healthz {
+        access_log off;
+        return 200 'ok';
+        add_header Content-Type text/plain;
+      }
+
+      location / {
+        proxy_pass http://kube-prometheus-grafana.observability.svc.cluster.local:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-proxy
+  namespace: efficientai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-proxy
+  template:
+    metadata:
+      labels:
+        app: grafana-proxy
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config
+          configMap:
+            name: grafana-proxy-config
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: grafana-proxy-bc
+  namespace: efficientai
+spec:
+  healthCheck:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 2
+    unhealthyThreshold: 3
+    type: HTTP
+    requestPath: /healthz
+    port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-proxy
+  namespace: efficientai
+  annotations:
+    cloud.google.com/backend-config: '{"default": "grafana-proxy-bc"}'
+spec:
+  type: NodePort
+  selector:
+    app: grafana-proxy
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP

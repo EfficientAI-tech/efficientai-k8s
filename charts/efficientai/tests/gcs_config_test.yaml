@@ -1,0 +1,90 @@
+suite: gcs blob storage config
+templates:
+  - templates/configmap.yaml
+  - templates/web/deployment.yaml
+  - templates/worker/deployment.yaml
+  - templates/worker-imports/deployment.yaml
+tests:
+  - it: renders GCS config when enabled
+    template: templates/configmap.yaml
+    set:
+      s3.enabled: false
+      gcs.enabled: true
+      gcs.bucket: test-audio-bucket
+      gcs.projectId: test-gcp-project
+      gcs.prefix: audio/
+    asserts:
+      - matchRegex:
+          path: data.config\.yml
+          pattern: "blob_provider: gcs"
+      - matchRegex:
+          path: data.config\.yml
+          pattern: "gcs:\\n\\s+bucket_name: test-audio-bucket"
+      - matchRegex:
+          path: data.config\.yml
+          pattern: "project_id: test-gcp-project"
+      - matchRegex:
+          path: data.config\.yml
+          pattern: "s3:\\n\\s+enabled: false"
+
+  - it: wires GCS env into web pods
+    template: templates/web/deployment.yaml
+    set:
+      s3.enabled: false
+      gcs.enabled: true
+      gcs.bucket: test-audio-bucket
+      gcs.projectId: test-gcp-project
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BLOB_STORAGE_PROVIDER
+            value: gcs
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GCS_BUCKET_NAME
+            value: test-audio-bucket
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GCS_PROJECT_ID
+            value: test-gcp-project
+
+  - it: wires GCS env into worker pods
+    template: templates/worker/deployment.yaml
+    set:
+      s3.enabled: false
+      gcs.enabled: true
+      gcs.bucket: test-audio-bucket
+      gcs.projectId: test-gcp-project
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BLOB_STORAGE_PROVIDER
+            value: gcs
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GCS_ENABLED
+            value: "true"
+
+  - it: wires GCS env into worker-imports pods
+    template: templates/worker-imports/deployment.yaml
+    set:
+      s3.enabled: false
+      gcs.enabled: true
+      gcs.bucket: test-audio-bucket
+      gcs.projectId: test-gcp-project
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BLOB_STORAGE_PROVIDER
+            value: gcs
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GCS_PREFIX
+            value: audio/

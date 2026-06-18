@@ -70,9 +70,12 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 | `DATABASE_URL` | `postgresql.*` (in-cluster) or `postgresql.deploy: false` + external host | Env var (built from `POSTGRES_USER/PASSWORD/HOST/PORT/DB` env) |
 | `REDIS_URL` | `redis.*` (in-cluster) or `redis.deploy: false` + external host/cluster | Env var (built from `REDIS_HOST/PORT[/auth]` env) |
 | `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` | `redis.*` (same source as `REDIS_URL`) | Env vars |
+| `storage.blob_provider` | `s3.enabled` / `gcs.enabled` | ConfigMap (`s3` by default, `gcs` when `gcs.enabled=true`) |
 | `storage.upload_dir` / `max_file_size_mb` / `allowed_audio_formats` | `efficientai.config.storage.*` | ConfigMap (verbatim) |
 | `s3.enabled` / `bucket_name` / `region` / `endpoint_url` / `prefix` | `s3.enabled` / `bucket` / `region` / `endpoint` / `prefix` | ConfigMap (verbatim) |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | `s3.accessKeyId` / `secretAccessKey` (`value:` or `secretKeyRef:`) | Env vars (chart Secret or your Secret) |
+| `gcs.enabled` / `bucket_name` / `project_id` / `prefix` | `gcs.enabled` / `bucket` / `projectId` / `prefix` | ConfigMap (verbatim) |
+| `BLOB_STORAGE_PROVIDER` / `GCS_ENABLED` / `GCS_BUCKET_NAME` / `GCS_PROJECT_ID` / `GCS_PREFIX` | `gcs.*` | Env vars (use GKE Workload Identity / ADC for credentials) |
 | `diarization.num_speakers` | `efficientai.config.diarization.num_speakers` | ConfigMap (verbatim) |
 | `HUGGINGFACE_TOKEN` | `efficientai.huggingfaceToken` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `cors.origins` | `efficientai.config.cors.origins` | ConfigMap (verbatim) |
@@ -186,6 +189,19 @@ If `efficientai.workerImports.command` is left empty, the chart builds `celery -
 | `s3.accessKeyId` | `value: ""` / `secretKeyRef:` |
 | `s3.secretAccessKey` | `value: ""` / `secretKeyRef:` |
 
+### External GCS (`gcs.*`)
+
+Enable this for native Google Cloud Storage. On GKE, use Workload Identity so the pod receives Application Default Credentials from its annotated Kubernetes ServiceAccount. Do not enable S3 and GCS at the same time.
+
+| Key | Default |
+|---|---|
+| `gcs.enabled` | `false` |
+| `gcs.bucket` | `""` |
+| `gcs.projectId` | `""` |
+| `gcs.prefix` | `audio/` |
+
 ## Examples
 
-See [../../examples/](../../examples/) for ready-to-use overlays.
+See [../../examples/](../../examples/) for ready-to-use overlays. GKE + GCS: [examples/gke/values-gcs.yaml](../../examples/gke/values-gcs.yaml).
+
+For GCS + Loki + Prometheus + Grafana on GKE, follow [../../docs/gke-gcs-observability.md](../../docs/gke-gcs-observability.md).

@@ -265,16 +265,33 @@ Supports standalone (in-chart or external host) and cluster mode (external only)
 {{- end -}}
 
 {{/*
-Common application env block (secret_key, encryption_key, license, HF token, S3 creds).
+Common application env block (secret_key, encryption_key, license, HF token, blob storage).
 */}}
 {{- define "efficientai.appEnvBlock" -}}
 {{- include "efficientai.secretValueEnv" (dict "root" . "cfg" .Values.efficientai.secretKey "envName" "SECRET_KEY") }}
 {{- include "efficientai.secretValueEnv" (dict "root" . "cfg" .Values.efficientai.encryptionKey "envName" "ENCRYPTION_KEY") }}
 {{- include "efficientai.secretValueEnv" (dict "root" . "cfg" .Values.efficientai.huggingfaceToken "envName" "HUGGINGFACE_TOKEN") }}
 {{- include "efficientai.secretValueEnv" (dict "root" . "cfg" .Values.efficientai.license "envName" "EFFICIENTAI_LICENSE") }}
+{{- if and .Values.s3.enabled .Values.gcs.enabled }}
+{{- fail "Only one blob storage provider can be enabled: set either s3.enabled=true or gcs.enabled=true, not both" }}
+{{- end }}
 {{- if .Values.s3.enabled }}
+- name: BLOB_STORAGE_PROVIDER
+  value: "s3"
 {{- include "efficientai.secretValueEnv" (dict "root" . "cfg" .Values.s3.accessKeyId "envName" "S3_ACCESS_KEY_ID") }}
 {{- include "efficientai.secretValueEnv" (dict "root" . "cfg" .Values.s3.secretAccessKey "envName" "S3_SECRET_ACCESS_KEY") }}
+{{- end }}
+{{- if .Values.gcs.enabled }}
+- name: BLOB_STORAGE_PROVIDER
+  value: "gcs"
+- name: GCS_ENABLED
+  value: "true"
+- name: GCS_BUCKET_NAME
+  value: {{ required "gcs.bucket is required when gcs.enabled=true" .Values.gcs.bucket | quote }}
+- name: GCS_PROJECT_ID
+  value: {{ required "gcs.projectId is required when gcs.enabled=true" .Values.gcs.projectId | quote }}
+- name: GCS_PREFIX
+  value: {{ .Values.gcs.prefix | quote }}
 {{- end }}
 - name: UPLOAD_DIR
   value: {{ .Values.efficientai.config.storage.upload_dir | quote }}

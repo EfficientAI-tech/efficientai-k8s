@@ -6,7 +6,7 @@
        and --concurrency flags work across all app versions. `eai worker`
        just shells out to celery internally, and celery picks up the broker
        URL from the CELERY_BROKER_URL env var that the pod already exports. */ -}}
-{{- $defaultCmd := list "celery" "-A" "app.workers.celery_app" "worker" "--loglevel=info" (printf "--queues=%s" (default "imports" $wi.queues)) (printf "--concurrency=%d" (int (default 4 $wi.concurrency))) -}}
+{{- $defaultCmd := list "celery" "-A" "app.workers.celery_app" "worker" "--loglevel=info" (printf "--queues=%s" (default "imports,diarization,evaluations" $wi.queues)) (printf "--concurrency=%d" (int (default 8 $wi.concurrency))) -}}
 {{- $cmd := default $defaultCmd $wi.command -}}
 {{- if eq (len $wi.command) 0 -}}{{- $cmd = $defaultCmd -}}{{- end -}}
 apiVersion: apps/v1

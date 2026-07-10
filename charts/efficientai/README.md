@@ -6,7 +6,7 @@ This chart deploys:
 
 - **web** — the FastAPI API (also serves the built frontend) — `Deployment`, `Service`, optional `Ingress`, `HPA`, `PDB`.
 - **worker** — a Celery worker for the default queue — `Deployment` (optional `HPA`, `PDB`).
-- **worker-imports** — a dedicated Celery worker for the `imports` queue (concurrency 4 by default) — `Deployment`.
+- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, and `evaluations` queues (concurrency 8 by default) — `Deployment`.
 - **postgresql** (optional, Bitnami subchart) — toggleable via `postgresql.deploy`.
 - **redis** (optional, Bitnami subchart) — toggleable via `redis.deploy`. Cluster mode supported via external endpoints.
 
@@ -139,8 +139,8 @@ Every component exposes the same surface:
 | Key | Default |
 |---|---|
 | `efficientai.workerImports.enabled` | `true` |
-| `efficientai.workerImports.queues` | `imports` |
-| `efficientai.workerImports.concurrency` | `4` |
+| `efficientai.workerImports.queues` | `imports,diarization,evaluations` |
+| `efficientai.workerImports.concurrency` | `8` |
 
 If `efficientai.workerImports.command` is left empty, the chart builds `celery -A app.workers.celery_app worker --loglevel=info --queues=<queues> --concurrency=<concurrency>` automatically. (We invoke `celery` directly rather than `eai worker --queues ... --concurrency ...` so the queue / concurrency flags work across all `efficientai-worker` image versions — older images' `eai worker` CLI doesn't expose those flags. Celery picks up the broker URL from the `CELERY_BROKER_URL` env the pod already exports.)
 

@@ -122,7 +122,7 @@ efficientai:
 
   workerImports:
     replicaCount: 1
-    concurrency: 4
+    concurrency: 8
     resources:
       limits:   { cpu: "2", memory: "4Gi" }
       requests: { cpu: "500m", memory: "2Gi" }

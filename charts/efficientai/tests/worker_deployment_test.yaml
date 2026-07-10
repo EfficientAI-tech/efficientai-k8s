@@ -33,10 +33,10 @@ tests:
           content: app.workers.celery_app
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --queues=imports
+          content: --queues=imports,diarization,evaluations
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --concurrency=4
+          content: --concurrency=8
 
   - it: respects custom workerImports.concurrency and queues
     template: templates/worker-imports/deployment.yaml

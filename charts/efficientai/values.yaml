@@ -251,13 +251,16 @@ efficientai:
     extraVolumeMounts: []
 
   # ===========================================================================
-  # worker-imports (dedicated `imports` queue) component
+  # worker-imports — dedicated Celery worker for call-import + evaluation
+  # queues. Drains `imports` (recording fetch) before `diarization` (manual
+  # diarise), then `evaluations` (eval rows, eval-chain transcribe, post-eval
+  # LLM). Mirrors docker-compose `worker-imports` service.
   # ===========================================================================
   workerImports:
     enabled: true
     replicaCount: 1
-    concurrency: 4
-    queues: imports
+    concurrency: 8
+    queues: imports,diarization,evaluations
     # Defaults to:
     #   celery -A app.workers.celery_app worker --loglevel=info \
     #          --queues=<queues> --concurrency=<concurrency>

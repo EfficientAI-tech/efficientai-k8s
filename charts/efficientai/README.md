@@ -6,7 +6,7 @@ This chart deploys:
 
 - **web** — the FastAPI API (also serves the built frontend) — `Deployment`, `Service`, optional `Ingress`, `HPA`, `PDB`.
 - **worker** — a Celery worker for the default queue — `Deployment` (optional `HPA`, `PDB`).
-- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, and `evaluations` queues (concurrency 8 by default) — `Deployment`.
+- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, and `evaluations` queues (thread pool, concurrency 32 by default) — `Deployment`.
 - **postgresql** (optional, Bitnami subchart) — toggleable via `postgresql.deploy`.
 - **redis** (optional, Bitnami subchart) — toggleable via `redis.deploy`. Cluster mode supported via external endpoints.
 
@@ -134,15 +134,25 @@ Every component exposes the same surface:
 | `efficientai.web.ingress.tls` | `[]` |
 | `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/api/v1/health` on port `8000` |
 
+#### Worker-only
+
+| Key | Default |
+|---|---|
+| `efficientai.worker.queues` | `celery,audio-metrics` |
+| `efficientai.worker.concurrency` | `8` |
+
+If `efficientai.worker.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> --concurrency <concurrency>` automatically.
+
 #### Worker-imports-only
 
 | Key | Default |
 |---|---|
 | `efficientai.workerImports.enabled` | `true` |
 | `efficientai.workerImports.queues` | `imports,diarization,evaluations` |
-| `efficientai.workerImports.concurrency` | `8` |
+| `efficientai.workerImports.pool` | `threads` |
+| `efficientai.workerImports.concurrency` | `32` |
 
-If `efficientai.workerImports.command` is left empty, the chart builds `celery -A app.workers.celery_app worker --loglevel=info --queues=<queues> --concurrency=<concurrency>` automatically. (We invoke `celery` directly rather than `eai worker --queues ... --concurrency ...` so the queue / concurrency flags work across all `efficientai-worker` image versions — older images' `eai worker` CLI doesn't expose those flags. Celery picks up the broker URL from the `CELERY_BROKER_URL` env the pod already exports.)
+If `efficientai.workerImports.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> --pool <pool> --concurrency <concurrency>` automatically. For a 128-thread import/eval pool on GKE, see [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (4 pods × 32 threads, HPA to 8 pods).
 
 ### Postgres (`postgresql.*`)
 

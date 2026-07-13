@@ -218,13 +218,13 @@ efficientai:
   # ===========================================================================
   worker:
     replicaCount: 1
-    command:
-      - eai
-      - worker
-      - --config
-      - /app/config.yml
-      - --loglevel
-      - info
+    # Celery queues drained by the default worker pool. Mirrors docker-compose.
+    queues: celery,audio-metrics
+    concurrency: 8
+    # When empty, the chart builds:
+    #   eai worker --config /app/config.yml --loglevel info \
+    #              --queues <queues> --concurrency <concurrency>
+    command: []
     resources: {}
     autoscaling:
       enabled: false
@@ -259,16 +259,13 @@ efficientai:
   workerImports:
     enabled: true
     replicaCount: 1
-    concurrency: 8
+    concurrency: 32
     queues: imports,diarization,evaluations
-    # Defaults to:
-    #   celery -A app.workers.celery_app worker --loglevel=info \
-    #          --queues=<queues> --concurrency=<concurrency>
-    #
-    # We call celery directly (rather than `eai worker --queues …
-    # --concurrency …`) so the queue/concurrency flags work across
-    # all efficientai-worker image versions. Celery picks up the broker
-    # URL from the CELERY_BROKER_URL env var the pod already exports.
+    # Thread pool for I/O-bound import/eval work (docker-compose default).
+    pool: threads
+    # When empty, the chart builds:
+    #   eai worker --config /app/config.yml --loglevel info \
+    #              --queues <queues> --pool <pool> --concurrency <concurrency>
     #
     # Override here to fully customize (must be a list of argv strings).
     command: []

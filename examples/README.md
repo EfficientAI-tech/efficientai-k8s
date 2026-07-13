@@ -32,6 +32,7 @@ helm install efficientai charts/efficientai -f examples/external-postgres.yaml
 | File | Required |
 |------|----------|
 | `gke/values-gcs.yaml` | Yes — app + GCS + Loki config |
+| `gke/values-gke-high-concurrency.yaml` | Optional — 4–8 worker-imports pods × 32 threads |
 | `gke/managed-cert-app.yaml` | Yes — TLS for app hostname |
 | `observability/loki.yaml` | Yes — via `make observability-install` |
 | `observability/kube-prometheus-stack.yaml` | Yes — via `make observability-install` |

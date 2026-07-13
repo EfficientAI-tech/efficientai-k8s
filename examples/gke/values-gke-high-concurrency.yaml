@@ -1,0 +1,80 @@
+# GKE overlay: high-concurrency worker-imports pool (128–256 Celery threads).
+#
+# Mirrors the EfficientAI AWS ECS / docker-compose worker split:
+#   worker         → celery,audio-metrics  (concurrency 8)
+#   worker-imports → imports,diarization,evaluations (threads pool, concurrency 32)
+#
+# Steady state: 4 pods × 32 threads = 128 concurrent import/eval workers.
+# HPA ceiling:  8 pods × 32 threads = 256 concurrent import/eval workers.
+#
+# Usage (layer on top of values-gcs.yaml):
+#   cp examples/gke/values-gcs.yaml my-gke-values.yaml
+#   # customize domains, project, bucket, secrets in my-gke-values.yaml
+#   helm upgrade --install efficientai charts/efficientai -n efficientai \
+#     -f my-gke-values.yaml \
+#     -f examples/gke/values-gke-high-concurrency.yaml \
+#     --wait
+#
+# Recommended GKE node pool for worker-imports (4–8 pods at 2 vCPU / 4 GiB each):
+#   machine type: e2-standard-8 or n2-standard-8
+#   min nodes:    4  (one worker-imports pod per node at steady state)
+#   max nodes:    8+ (headroom for web/worker/postgres/redis + HPA scale-out)
+#
+# Total worker-imports CPU/memory at steady state: 8 vCPU / 16 GiB reserved.
+
+efficientai:
+  web:
+    replicaCount: 2
+    resources:
+      requests: { cpu: "1", memory: "2Gi" }
+      limits:   { cpu: "2", memory: "4Gi" }
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 60
+
+  worker:
+    replicaCount: 1
+    queues: celery,audio-metrics
+    concurrency: 8
+    command: []
+    resources:
+      requests: { cpu: "2", memory: "4Gi" }
+      limits:   { cpu: "2", memory: "8Gi" }
+
+  workerImports:
+    enabled: true
+    replicaCount: 4
+    queues: imports,diarization,evaluations
+    pool: threads
+    concurrency: 32
+    command: []
+    resources:
+      requests: { cpu: "2", memory: "4Gi" }
+      limits:   { cpu: "2", memory: "4Gi" }
+    autoscaling:
+      enabled: true
+      minReplicas: 4
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+    pod:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker-imports
+
+postgresql:
+  primary:
+    resources:
+      requests: { cpu: "1", memory: "2Gi" }
+      limits:   { cpu: "2", memory: "4Gi" }
+
+redis:
+  primary:
+    resources:
+      requests: { cpu: "500m", memory: "1Gi" }
+      limits:   { cpu: "2", memory: "2Gi" }

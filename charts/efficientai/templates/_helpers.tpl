@@ -298,3 +298,42 @@ Common application env block (secret_key, encryption_key, license, HF token, blo
 - name: FRONTEND_DIR
   value: "/app/frontend/dist"
 {{- end -}}
+
+{{/*
+Build the default worker container command unless efficientai.worker.command is set.
+Usage: {{- include "efficientai.worker.command" . | nindent 12 }}
+*/}}
+{{- define "efficientai.worker.command" -}}
+{{- $w := .Values.efficientai.worker -}}
+{{- if gt (len $w.command) 0 -}}
+{{ toYaml $w.command }}
+{{- else -}}
+{{- $args := list "eai" "worker" "--config" "/app/config.yml" "--loglevel" "info" -}}
+{{- if $w.queues -}}
+{{- $args = concat $args (list "--queues" $w.queues) -}}
+{{- end -}}
+{{- if $w.concurrency -}}
+{{- $args = concat $args (list "--concurrency" (printf "%d" (int $w.concurrency))) -}}
+{{- end -}}
+{{ toYaml $args }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Build the default worker-imports container command unless efficientai.workerImports.command is set.
+Usage: {{- include "efficientai.workerImports.command" . | nindent 12 }}
+*/}}
+{{- define "efficientai.workerImports.command" -}}
+{{- $wi := .Values.efficientai.workerImports -}}
+{{- if gt (len $wi.command) 0 -}}
+{{ toYaml $wi.command }}
+{{- else -}}
+{{- $args := list "eai" "worker" "--config" "/app/config.yml" "--loglevel" "info" -}}
+{{- $args = concat $args (list "--queues" (default "imports,diarization,evaluations" $wi.queues)) -}}
+{{- with $wi.pool -}}
+{{- $args = concat $args (list "--pool" .) -}}
+{{- end -}}
+{{- $args = concat $args (list "--concurrency" (printf "%d" (int (default 32 $wi.concurrency)))) -}}
+{{ toYaml $args }}
+{{- end -}}
+{{- end -}}

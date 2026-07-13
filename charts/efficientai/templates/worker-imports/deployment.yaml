@@ -2,6 +2,20 @@
 {{- $component := "worker-imports" -}}
 {{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
 {{- $wi := .Values.efficientai.workerImports -}}
+{{- $autoSpread := list -}}
+{{- if $wi.spreadAcrossNodes -}}
+{{- $autoSpread = list (dict
+    "maxSkew" 1
+    "topologyKey" "kubernetes.io/hostname"
+    "whenUnsatisfiable" "DoNotSchedule"
+    "labelSelector" (dict "matchLabels" (dict
+      "app.kubernetes.io/name" (include "efficientai.name" .)
+      "app.kubernetes.io/instance" .Release.Name
+      "app.kubernetes.io/component" $component
+    ))
+  ) -}}
+{{- end -}}
+{{- $topologySpreadConstraints := concat $autoSpread ($wi.pod.topologySpreadConstraints | default list) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,9 +72,9 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with $wi.pod.topologySpreadConstraints }}
+      {{- if gt (len $topologySpreadConstraints) 0 }}
       topologySpreadConstraints:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml $topologySpreadConstraints | nindent 8 }}
       {{- end }}
       containers:
         - name: worker-imports

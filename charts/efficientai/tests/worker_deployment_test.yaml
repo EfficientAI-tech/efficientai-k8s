@@ -4,10 +4,11 @@ templates:
   - templates/worker-imports/deployment.yaml
   - templates/configmap.yaml
 tests:
-  - it: renders the worker deployment with worker image and command
+  - it: renders the worker without queue flags when worker-imports is disabled
     template: templates/worker/deployment.yaml
     set:
       efficientai.secretKey.value: "x"
+      efficientai.workerImports.enabled: false
     asserts:
       - hasDocuments:
           count: 1
@@ -17,6 +18,17 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].command
           content: eai
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: --queues
+
+  - it: renders queue flags on worker when worker-imports is enabled
+    template: templates/worker/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.worker.queues: celery,audio-metrics
+      efficientai.worker.concurrency: 8
+    asserts:
       - contains:
           path: spec.template.spec.containers[0].command
           content: --queues
@@ -48,16 +60,13 @@ tests:
           content: imports,diarization,evaluations
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --pool
-      - contains:
-          path: spec.template.spec.containers[0].command
-          content: threads
-      - contains:
-          path: spec.template.spec.containers[0].command
           content: --concurrency
       - contains:
           path: spec.template.spec.containers[0].command
-          content: "32"
+          content: "8"
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: --pool
 
   - it: respects custom workerImports.concurrency and queues
     template: templates/worker-imports/deployment.yaml

@@ -309,11 +309,14 @@ Usage: {{- include "efficientai.worker.command" . | nindent 12 }}
 {{ toYaml $w.command }}
 {{- else -}}
 {{- $args := list "eai" "worker" "--config" "/app/config.yml" "--loglevel" "info" -}}
+{{- /* Only restrict queues when a dedicated worker-imports pool is enabled. */ -}}
+{{- if .Values.efficientai.workerImports.enabled -}}
 {{- if $w.queues -}}
 {{- $args = concat $args (list "--queues" $w.queues) -}}
 {{- end -}}
 {{- if $w.concurrency -}}
 {{- $args = concat $args (list "--concurrency" (printf "%d" (int $w.concurrency))) -}}
+{{- end -}}
 {{- end -}}
 {{ toYaml $args }}
 {{- end -}}
@@ -331,9 +334,11 @@ Usage: {{- include "efficientai.workerImports.command" . | nindent 12 }}
 {{- $args := list "eai" "worker" "--config" "/app/config.yml" "--loglevel" "info" -}}
 {{- $args = concat $args (list "--queues" (default "imports,diarization,evaluations" $wi.queues)) -}}
 {{- with $wi.pool -}}
+{{- if ne . "" -}}
 {{- $args = concat $args (list "--pool" .) -}}
 {{- end -}}
-{{- $args = concat $args (list "--concurrency" (printf "%d" (int (default 32 $wi.concurrency)))) -}}
+{{- end -}}
+{{- $args = concat $args (list "--concurrency" (printf "%d" (int (default 8 $wi.concurrency)))) -}}
 {{ toYaml $args }}
 {{- end -}}
 {{- end -}}

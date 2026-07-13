@@ -3,7 +3,7 @@ templates:
   - templates/worker-imports/deployment.yaml
   - templates/configmap.yaml
 tests:
-  - it: renders eai worker with queues, pool, and concurrency by default
+  - it: renders eai worker with queues and default concurrency
     template: templates/worker-imports/deployment.yaml
     set:
       efficientai.secretKey.value: "x"
@@ -24,23 +24,17 @@ tests:
           content: imports,diarization,evaluations
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --pool
-      - contains:
-          path: spec.template.spec.containers[0].command
-          content: threads
-      - contains:
-          path: spec.template.spec.containers[0].command
           content: --concurrency
       - contains:
           path: spec.template.spec.containers[0].command
-          content: "32"
+          content: "8"
 
   - it: respects custom workerImports pool and concurrency
     template: templates/worker-imports/deployment.yaml
     set:
       efficientai.secretKey.value: "x"
-      efficientai.workerImports.pool: prefork
-      efficientai.workerImports.concurrency: 16
+      efficientai.workerImports.pool: threads
+      efficientai.workerImports.concurrency: 32
       efficientai.workerImports.queues: "imports,heavy"
     asserts:
       - contains:
@@ -48,13 +42,29 @@ tests:
           content: --pool
       - contains:
           path: spec.template.spec.containers[0].command
-          content: prefork
+          content: threads
       - contains:
           path: spec.template.spec.containers[0].command
           content: imports,heavy
       - contains:
           path: spec.template.spec.containers[0].command
-          content: "16"
+          content: "32"
+
+  - it: renders release-scoped topology spread when spreadAcrossNodes is true
+    template: templates/worker-imports/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.spreadAcrossNodes: true
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].labelSelector.matchLabels["app.kubernetes.io/component"]
+          value: worker-imports
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].labelSelector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
 
   - it: uses a fully custom command when workerImports.command is set
     template: templates/worker-imports/deployment.yaml

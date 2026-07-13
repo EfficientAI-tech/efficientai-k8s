@@ -43,3 +43,19 @@ To reach it from your machine:
 WARNING: efficientai.secretKey is empty. Generate one and re-run helm upgrade:
   openssl rand -hex 32
 {{- end }}
+
+{{- if .Values.efficientai.workerImports.enabled }}
+{{- if ge (int .Values.efficientai.workerImports.concurrency) 16 }}
+
+Worker-imports concurrency is {{ .Values.efficientai.workerImports.concurrency }} per pod.
+Ensure Postgres/Redis connection pools are sized for replicas × concurrency.
+For the 128-thread GKE overlay, use examples/gke/values-gke-high-concurrency.yaml.
+{{- end }}
+{{- end }}
+
+{{- if .Values.efficientai.workerImports.enabled }}
+Default worker drains: {{ default "celery,audio-metrics" .Values.efficientai.worker.queues }} (set efficientai.worker.queues / .concurrency).
+Worker-imports drains: {{ .Values.efficientai.workerImports.queues }}.
+Requires efficientai-worker image with `eai worker --queues/--pool/--concurrency` support (>= 1.5.0).
+For older images, set efficientai.workerImports.command to invoke celery directly.
+{{- end }}

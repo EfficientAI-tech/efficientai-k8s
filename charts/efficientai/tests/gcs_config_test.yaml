@@ -15,16 +15,16 @@ tests:
       gcs.prefix: audio/
     asserts:
       - matchRegex:
-          path: data.config\.yml
+          path: data["config.yml"]
           pattern: "blob_provider: gcs"
       - matchRegex:
-          path: data.config\.yml
+          path: data["config.yml"]
           pattern: "gcs:\\n\\s+bucket_name: test-audio-bucket"
       - matchRegex:
-          path: data.config\.yml
+          path: data["config.yml"]
           pattern: "project_id: test-gcp-project"
       - matchRegex:
-          path: data.config\.yml
+          path: data["config.yml"]
           pattern: "s3:\\n\\s+enabled: false"
 
   - it: wires GCS env into web pods

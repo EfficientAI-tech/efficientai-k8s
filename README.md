@@ -126,14 +126,6 @@ efficientai:
     replicaCount: 4
     pool: threads
     concurrency: 32
-    resources:
-      limits:   { cpu: "2", memory: "4Gi" }
-      requests: { cpu: "2", memory: "4Gi" }
-    autoscaling:
-      enabled: true
-      minReplicas: 4
-      maxReplicas: 8
-      targetCPUUtilizationPercentage: 70
 
 postgresql:
   primary:

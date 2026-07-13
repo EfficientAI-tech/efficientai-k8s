@@ -50,6 +50,7 @@ efficientai:
     pool: threads
     concurrency: 32
     command: []
+    spreadAcrossNodes: true
     resources:
       requests: { cpu: "2", memory: "4Gi" }
       limits:   { cpu: "2", memory: "4Gi" }
@@ -58,14 +59,6 @@ efficientai:
       minReplicas: 4
       maxReplicas: 8
       targetCPUUtilizationPercentage: 70
-    pod:
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/component: worker-imports
 
 postgresql:
   primary:

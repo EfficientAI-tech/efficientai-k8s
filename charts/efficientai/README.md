@@ -138,10 +138,10 @@ Every component exposes the same surface:
 
 | Key | Default |
 |---|---|
-| `efficientai.worker.queues` | `celery,audio-metrics` |
-| `efficientai.worker.concurrency` | `8` |
+| `efficientai.worker.queues` | `""` (no `--queues`; drains all queues when worker-imports is disabled) |
+| `efficientai.worker.concurrency` | `0` (omit `--concurrency` unless set > 0) |
 
-If `efficientai.worker.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> --concurrency <concurrency>` automatically.
+When `efficientai.workerImports.enabled=true` and `efficientai.worker.command` is empty, set `efficientai.worker.queues` / `.concurrency` to split pools (docker-compose default: `celery,audio-metrics` @ `8`). When worker-imports is disabled, leave both empty so the default worker continues draining every queue.
 
 #### Worker-imports-only
 
@@ -149,10 +149,13 @@ If `efficientai.worker.command` is left empty, the chart builds `eai worker --co
 |---|---|
 | `efficientai.workerImports.enabled` | `true` |
 | `efficientai.workerImports.queues` | `imports,diarization,evaluations` |
-| `efficientai.workerImports.pool` | `threads` |
-| `efficientai.workerImports.concurrency` | `32` |
+| `efficientai.workerImports.pool` | `""` (omit `--pool`; set to `threads` for I/O-bound work) |
+| `efficientai.workerImports.concurrency` | `8` |
+| `efficientai.workerImports.spreadAcrossNodes` | `false` (release-scoped host spread when `true`) |
 
-If `efficientai.workerImports.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> --pool <pool> --concurrency <concurrency>` automatically. For a 128-thread import/eval pool on GKE, see [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (4 pods × 32 threads, HPA to 8 pods).
+If `efficientai.workerImports.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> [--pool <pool>] --concurrency <n>`. Requires `efficientai-worker` **>= 1.5.0** (images with `eai worker --queues/--pool/--concurrency`). For older images, set `efficientai.workerImports.command` to invoke `celery -A app.workers.celery_app worker ...` directly.
+
+For a 128-thread import/eval pool on GKE, use [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (4 pods × 32 threads, HPA to 8 pods).
 
 ### Postgres (`postgresql.*`)
 

@@ -2,6 +2,9 @@
 {{- $component := "worker-imports" -}}
 {{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
 {{- $wi := .Values.efficientai.workerImports -}}
+{{- if and $wi.autoscaling.enabled $wi.keda.enabled -}}
+{{- fail "efficientai.workerImports.autoscaling.enabled and efficientai.workerImports.keda.enabled are mutually exclusive — enable only one autoscaler" -}}
+{{- end -}}
 {{- $autoSpread := list -}}
 {{- if $wi.spreadAcrossNodes -}}
 {{- $autoSpread = list (dict
@@ -24,7 +27,7 @@ metadata:
   labels:
     {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
-  {{- if not $wi.autoscaling.enabled }}
+  {{- if and (not $wi.autoscaling.enabled) (not $wi.keda.enabled) }}
   replicas: {{ $wi.replicaCount }}
   {{- end }}
   selector:

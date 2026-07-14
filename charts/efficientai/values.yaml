@@ -269,6 +269,21 @@ efficientai:
       minReplicas: 1
       maxReplicas: 5
       targetCPUUtilizationPercentage: 70
+    # KEDA Redis list scaler — mutually exclusive with autoscaling.enabled (CPU HPA).
+    # Scales worker-imports from Celery queue depth (imports, diarization, evaluations).
+    keda:
+      enabled: false
+      minReplicaCount: 8
+      maxReplicaCount: 20
+      pollingInterval: 15
+      cooldownPeriod: 120
+      listLength: 32
+      activationListLength: 0
+      queues: []
+      redis:
+        address: ""
+        databaseIndex: "0"
+        enableTLS: false
     # Spread worker-imports pods across nodes for this release only (release-scoped
     # label selector). Prefer this over hand-written topologySpreadConstraints.
     spreadAcrossNodes: false

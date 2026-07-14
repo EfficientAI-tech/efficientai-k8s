@@ -1,0 +1,102 @@
+suite: worker-imports keda
+templates:
+  - templates/worker-imports/scaledobject.yaml
+  - templates/worker-imports/triggerauthentication.yaml
+  - templates/worker-imports/hpa.yaml
+  - templates/worker-imports/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders ScaledObject with redis triggers for all import queues
+    template: templates/worker-imports/scaledobject.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.keda.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ScaledObject
+      - equal:
+          path: spec.minReplicaCount
+          value: 8
+      - equal:
+          path: spec.maxReplicaCount
+          value: 20
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.triggers[0].type
+          value: redis
+      - equal:
+          path: spec.triggers[0].metadata.listName
+          value: imports
+      - equal:
+          path: spec.triggers[1].metadata.listName
+          value: diarization
+      - equal:
+          path: spec.triggers[2].metadata.listName
+          value: evaluations
+      - matchRegex:
+          path: spec.triggers[0].metadata.address
+          pattern: "RELEASE-NAME-redis-master\\.NAMESPACE\\.svc\\.cluster\\.local:6379"
+
+  - it: renders TriggerAuthentication when redis auth is enabled
+    template: templates/worker-imports/triggerauthentication.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.keda.enabled: true
+      redis.auth.enabled: true
+      redis.auth.existingSecret: efficientai-redis
+      redis.auth.existingSecretPasswordKey: password
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: TriggerAuthentication
+      - equal:
+          path: spec.secretTargetRef[0].parameter
+          value: password
+      - equal:
+          path: spec.secretTargetRef[0].name
+          value: efficientai-redis
+      - equal:
+          path: spec.secretTargetRef[0].key
+          value: password
+
+  - it: omits TriggerAuthentication when redis auth is disabled
+    template: templates/worker-imports/triggerauthentication.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.keda.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not render CPU HPA when KEDA is enabled
+    template: templates/worker-imports/hpa.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.keda.enabled: true
+      efficientai.workerImports.autoscaling.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: omits replicas when KEDA is enabled
+    template: templates/worker-imports/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.keda.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: fails when both CPU HPA and KEDA are enabled
+    template: templates/worker-imports/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerImports.autoscaling.enabled: true
+      efficientai.workerImports.keda.enabled: true
+    asserts:
+      - failedTemplate: {}

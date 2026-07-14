@@ -342,3 +342,56 @@ Usage: {{- include "efficientai.workerImports.command" . | nindent 12 }}
 {{ toYaml $args }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+True when Redis auth credentials are configured (matches efficientai.redis.envBlock).
+*/}}
+{{- define "efficientai.redis.authEnabled" -}}
+{{- or (and .Values.redis.auth .Values.redis.auth.enabled) (and .Values.redis.auth .Values.redis.auth.password) (and .Values.redis.auth .Values.redis.auth.existingSecret) -}}
+{{- end -}}
+
+{{/*
+Secret name holding the Redis password for TriggerAuthentication.
+*/}}
+{{- define "efficientai.redis.authSecretName" -}}
+{{- if .Values.redis.auth.existingSecret -}}
+{{- .Values.redis.auth.existingSecret -}}
+{{- else -}}
+{{- include "efficientai.secretName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Redis host:port for KEDA redis scaler (FQDN when in-cluster so keda-operator can reach the broker).
+*/}}
+{{- define "efficientai.redis.kedaAddress" -}}
+{{- $kedaRedis := .Values.efficientai.workerImports.keda.redis | default dict -}}
+{{- if $kedaRedis.address -}}
+{{- $kedaRedis.address -}}
+{{- else if and .Values.redis.cluster .Values.redis.cluster.enabled -}}
+{{- fail "KEDA Redis list scaler requires standalone Redis; redis.cluster.enabled is not supported" -}}
+{{- else -}}
+{{- $host := "" -}}
+{{- if .Values.redis.deploy -}}
+{{- $host = printf "%s-redis-master.%s.svc.cluster.local" .Release.Name .Release.Namespace -}}
+{{- else -}}
+{{- $host = required "redis.host is required when redis.deploy is false" .Values.redis.host -}}
+{{- end -}}
+{{- printf "%s:%d" $host (int (.Values.redis.port | default 6379)) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Celery queue names for KEDA redis triggers (defaults to workerImports.queues).
+Returns a comma-separated string for splitList in templates.
+*/}}
+{{- define "efficientai.workerImports.kedaQueueList" -}}
+{{- $wi := .Values.efficientai.workerImports -}}
+{{- $keda := $wi.keda | default dict -}}
+{{- $kedaQueues := $keda.queues | default list -}}
+{{- if gt (len $kedaQueues) 0 -}}
+{{- join "," $kedaQueues -}}
+{{- else -}}
+{{- $wi.queues | default "imports,diarization,evaluations" -}}
+{{- end -}}
+{{- end -}}

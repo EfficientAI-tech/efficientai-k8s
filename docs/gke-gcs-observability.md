@@ -275,6 +275,50 @@ efficientAI/observability/grafana/dashboards/
 
 Import in Grafana: **Dashboards → New → Import** (upload JSON files).
 
+## Step 9 — Queue-depth autoscaling with KEDA (optional)
+
+The `worker-imports` pool is I/O-bound (`--pool threads --concurrency 32`). CPU-based HPA will not scale when queue depth grows but CPU stays low. Use KEDA to scale from Redis Celery queue length instead.
+
+**Prerequisites:** layer [`examples/gke/values-gke-high-concurrency.yaml`](../examples/gke/values-gke-high-concurrency.yaml) on your values file. It enables `efficientai.workerImports.keda` (8–20 pods) and disables CPU HPA on worker-imports.
+
+### Install KEDA operator
+
+```bash
+make keda-install
+```
+
+### Deploy with KEDA enabled
+
+```bash
+helm upgrade --install "$RELEASE" charts/efficientai -n "$NAMESPACE" \
+  -f my-gke-values.yaml \
+  -f examples/gke/values-gke-high-concurrency.yaml \
+  --wait
+```
+
+### Verify Redis queue keys (one-time)
+
+Celery stores each queue as a Redis list on DB 0 with the queue name as the key:
+
+```bash
+kubectl -n "$NAMESPACE" exec -it deploy/"${RELEASE}-redis-master" -- \
+  redis-cli -a "$(kubectl -n "$NAMESPACE" get secret efficientai-redis -o jsonpath='{.data.password}' | base64 -d)" \
+  -n 0 LLEN imports
+```
+
+Repeat for `diarization` and `evaluations`. Cross-check in Grafana: `celery_queue_length{queue_name="imports"}`.
+
+### Confirm KEDA objects
+
+```bash
+kubectl -n "$NAMESPACE" get scaledobject,triggerauthentication,hpa
+kubectl -n keda get pods
+```
+
+KEDA reads `imports`, `diarization`, and `evaluations` list lengths and scales `worker-imports` to keep ~32 queued tasks per pod (max across triggers). Size your GKE node pool for **min 8 / max 20+** nodes if using `spreadAcrossNodes: true`.
+
+**Note:** the default `worker` pool (`celery`, `audio-metrics`) is not KEDA-scaled in this overlay. Add separate KEDA triggers if you autoscale that deployment later.
+
 ## Verification
 
 ```bash
@@ -304,6 +348,8 @@ make observability-install            # Loki + kube-prometheus-stack
 make observability-servicemonitor     # EfficientAI /metrics scrape
 make observability-grafana-expose     # proxy + ingress patch for Grafana
 make observability-uninstall          # remove observability releases
+make keda-install                     # KEDA operator for queue-depth autoscaling
+make keda-uninstall                   # remove KEDA operator
 ```
 
 ## Troubleshooting
@@ -319,12 +365,15 @@ make observability-uninstall          # remove observability releases
 | No metrics in Grafana | ServiceMonitor missing | `make observability-servicemonitor` |
 | No logs in Loki | App deployed before Loki | Restart web/worker pods after Loki is up |
 | GCS 403 | Workload Identity binding wrong | KSA must be `[namespace/release]` matching Helm release |
+| worker-imports not scaling | KEDA not installed or CPU HPA still enabled | `make keda-install`; set `keda.enabled: true`, `autoscaling.enabled: false` |
+| KEDA ScaledObject error | Redis auth / wrong DB | Confirm `efficientai-redis` secret; queues on DB 0 (`-n 0`) |
 
 ## File reference
 
 | File | Purpose |
 |------|---------|
 | [`examples/gke/values-gcs.yaml`](../examples/gke/values-gcs.yaml) | App values: GCS, observability config, GCE ingress |
+| [`examples/gke/values-gke-high-concurrency.yaml`](../examples/gke/values-gke-high-concurrency.yaml) | KEDA overlay: 8–20 worker-imports pods, queue-depth autoscaling |
 | [`examples/gke/values-grafana-ingress.yaml`](../examples/gke/values-grafana-ingress.yaml) | Optional Helm overlay: Grafana hostname on app Ingress |
 | [`examples/gke/managed-cert-app.yaml`](../examples/gke/managed-cert-app.yaml) | ManagedCertificate for app domain |
 | [`examples/gke/grafana-proxy.yaml`](../examples/gke/grafana-proxy.yaml) | Nginx proxy + Grafana TLS cert |

@@ -1,0 +1,16 @@
+{{- if and .Values.efficientai.workerImports.enabled .Values.efficientai.workerImports.keda.enabled (include "efficientai.redis.authEnabled" .) -}}
+{{- $component := "worker-imports" -}}
+{{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ printf "%s-keda-redis-auth" $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ include "efficientai.redis.authSecretName" . | quote }}
+      key: {{ .Values.redis.auth.existingSecretPasswordKey | default "password" | quote }}
+{{- end }}

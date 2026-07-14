@@ -96,7 +96,7 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 
 ### Sizing
 
-Defaults are minimal for dev / smoke testing. For production, scale per-component. On GKE, use [`examples/gke/values-gke-high-concurrency.yaml`](examples/gke/values-gke-high-concurrency.yaml) for a 128-thread import/eval pool (4 pods × 32 threads, HPA to 8 pods / 256 threads):
+Defaults are minimal for dev / smoke testing. For production, scale per-component. On GKE, use [`examples/gke/values-gke-high-concurrency.yaml`](examples/gke/values-gke-high-concurrency.yaml) for a 256-thread import/eval pool (8 pods × 32 threads, KEDA to 20 pods / 640 threads):
 
 ```yaml
 efficientai:
@@ -123,9 +123,13 @@ efficientai:
       requests: { cpu: "2", memory: "4Gi" }
 
   workerImports:
-    replicaCount: 4
+    replicaCount: 8
     pool: threads
     concurrency: 32
+    keda:
+      enabled: true
+      minReplicaCount: 8
+      maxReplicaCount: 20
 
 postgresql:
   primary:
@@ -154,7 +158,7 @@ Every example in `examples/` is a values overlay or manifest. See [`examples/REA
 | `external-redis.yaml` | External standalone Redis and external Redis Cluster (e.g. AWS ElastiCache config endpoint) |
 | `external-s3.yaml` | External S3 bucket with credentials sourced via `secretKeyRef` |
 | `gke/values-gcs.yaml` | GKE + GCS via Workload Identity, observability config, GCE Ingress |
-| `gke/values-gke-high-concurrency.yaml` | GKE overlay: 4–8 worker-imports pods × 32 threads (128–256 Celery threads) |
+| `gke/values-gke-high-concurrency.yaml` | GKE overlay: 8–20 worker-imports pods × 32 threads (256–640 Celery threads, KEDA) |
 | `ingress-alb.yaml` | AWS Load Balancer Controller with redirect action and custom per-host backend |
 | `sso-oidc.yaml` | External OIDC SSO (Okta-style) wired through `efficientai.web.additionalEnv` |
 | `topology-spread.yaml` | Zone- and host-aware spread constraints for `web`, `worker`, and `workerImports` |

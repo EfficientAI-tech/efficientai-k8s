@@ -6,7 +6,7 @@ OBS_NAMESPACE ?= observability
 
 .PHONY: help deps lint template unittest install upgrade uninstall clean kind-up kind-deploy kind-down \
 	observability-repos observability-install observability-uninstall observability-servicemonitor \
-	observability-grafana-expose
+	observability-grafana-expose keda-install keda-uninstall
 
 help:
 	@echo "Chart targets:"
@@ -25,6 +25,10 @@ help:
 	@echo "  observability-servicemonitor   - apply EfficientAI /metrics ServiceMonitor"
 	@echo "  observability-grafana-expose - nginx proxy + Ingress patch for public Grafana"
 	@echo "  observability-uninstall      - remove observability helm releases"
+	@echo ""
+	@echo "KEDA (GKE queue-depth autoscaling):"
+	@echo "  keda-install                 - install KEDA operator in keda namespace"
+	@echo "  keda-uninstall               - remove KEDA operator"
 	@echo ""
 	@echo "GKE guide: docs/gke-gcs-observability.md"
 	@echo ""
@@ -93,3 +97,12 @@ observability-grafana-expose:
 observability-uninstall:
 	helm uninstall kube-prometheus -n $(OBS_NAMESPACE) 2>/dev/null || true
 	helm uninstall loki -n $(OBS_NAMESPACE) 2>/dev/null || true
+
+keda-install:
+	helm repo add kedacore https://kedacore.github.io/charts 2>/dev/null || true
+	helm repo update kedacore
+	kubectl create namespace keda --dry-run=client -o yaml | kubectl apply -f -
+	helm upgrade --install keda kedacore/keda -n keda --wait --timeout 10m
+
+keda-uninstall:
+	helm uninstall keda -n keda 2>/dev/null || true

@@ -1,4 +1,4 @@
-{{- if and .Values.efficientai.workerImports.enabled .Values.efficientai.workerImports.autoscaling.enabled -}}
+{{- if and .Values.efficientai.workerImports.enabled .Values.efficientai.workerImports.autoscaling.enabled (not .Values.efficientai.workerImports.keda.enabled) -}}
 {{- $component := "worker-imports" -}}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

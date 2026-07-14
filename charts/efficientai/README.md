@@ -105,7 +105,7 @@ Every component exposes the same surface:
 
 | Key | Default | Notes |
 |---|---|---|
-| `replicaCount` | `1` | Ignored when `autoscaling.enabled: true`. |
+| `replicaCount` | `1` | Ignored when `autoscaling.enabled: true` or `keda.enabled: true`. |
 | `command` | sensible default per component | Overridable container `command`. |
 | `resources` | `{}` | Standard `requests`/`limits`. |
 | `autoscaling.enabled` | `false` | When true, creates an `HPA` v2. |
@@ -152,10 +152,16 @@ When `efficientai.workerImports.enabled=true` and `efficientai.worker.command` i
 | `efficientai.workerImports.pool` | `""` (omit `--pool`; set to `threads` for I/O-bound work) |
 | `efficientai.workerImports.concurrency` | `8` |
 | `efficientai.workerImports.spreadAcrossNodes` | `false` (release-scoped host spread when `true`) |
+| `efficientai.workerImports.keda.enabled` | `false` (mutually exclusive with `autoscaling.enabled`) |
+| `efficientai.workerImports.keda.minReplicaCount` / `maxReplicaCount` | `8` / `20` |
+| `efficientai.workerImports.keda.listLength` | `32` (target queued tasks per pod; match `concurrency`) |
+| `efficientai.workerImports.keda.pollingInterval` / `cooldownPeriod` | `15` / `120` |
+| `efficientai.workerImports.keda.queues` | `[]` (default: split `workerImports.queues`) |
+| `efficientai.workerImports.keda.redis.address` | `""` (default: in-cluster FQDN or `redis.host:port`) |
 
 If `efficientai.workerImports.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> [--pool <pool>] --concurrency <n>`. Requires `efficientai-worker` **>= 1.5.0** (images with `eai worker --queues/--pool/--concurrency`). For older images, set `efficientai.workerImports.command` to invoke `celery -A app.workers.celery_app worker ...` directly.
 
-For a 128-thread import/eval pool on GKE, use [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (4 pods × 32 threads, HPA to 8 pods).
+For a 256-thread import/eval pool on GKE with queue-depth autoscaling, use [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (8 pods × 32 threads, KEDA to 20 pods). Install the KEDA operator first: `make keda-install`.
 
 ### Postgres (`postgresql.*`)
 

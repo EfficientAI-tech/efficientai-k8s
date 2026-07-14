@@ -1,0 +1,43 @@
+{{- if and .Values.efficientai.workerImports.enabled .Values.efficientai.workerImports.keda.enabled -}}
+{{- $component := "worker-imports" -}}
+{{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
+{{- $wi := .Values.efficientai.workerImports -}}
+{{- $keda := $wi.keda | default dict -}}
+{{- $kedaRedis := $keda.redis | default dict -}}
+{{- $authName := printf "%s-keda-redis-auth" $name -}}
+{{- $queues := splitList "," (include "efficientai.workerImports.kedaQueueList" .) -}}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicaCount: {{ $keda.minReplicaCount | default 8 }}
+  maxReplicaCount: {{ $keda.maxReplicaCount | default 20 }}
+  pollingInterval: {{ $keda.pollingInterval | default 15 }}
+  cooldownPeriod: {{ $keda.cooldownPeriod | default 120 }}
+  triggers:
+    {{- range $queues }}
+    {{- $queue := trim . }}
+    {{- if $queue }}
+    - type: redis
+      metadata:
+        address: {{ include "efficientai.redis.kedaAddress" $ }}
+        databaseIndex: {{ $kedaRedis.databaseIndex | default "0" | quote }}
+        listName: {{ $queue | quote }}
+        listLength: {{ $keda.listLength | default 32 | quote }}
+        activationListLength: {{ $keda.activationListLength | default 0 | quote }}
+        enableTLS: {{ $kedaRedis.enableTLS | default false | quote }}
+      {{- if include "efficientai.redis.authEnabled" $ }}
+      authenticationRef:
+        name: {{ $authName }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}

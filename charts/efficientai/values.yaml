@@ -218,13 +218,12 @@ efficientai:
   # ===========================================================================
   worker:
     replicaCount: 1
-    command:
-      - eai
-      - worker
-      - --config
-      - /app/config.yml
-      - --loglevel
-      - info
+    # When workerImports.enabled=true, set queues/concurrency to split Celery
+    # pools (docker-compose default: celery,audio-metrics @ concurrency 8).
+    # Leave empty when workerImports is disabled so the worker drains all queues.
+    queues: ""
+    concurrency: 0
+    command: []
     resources: {}
     autoscaling:
       enabled: false
@@ -261,16 +260,8 @@ efficientai:
     replicaCount: 1
     concurrency: 8
     queues: imports,diarization,evaluations
-    # Defaults to:
-    #   celery -A app.workers.celery_app worker --loglevel=info \
-    #          --queues=<queues> --concurrency=<concurrency>
-    #
-    # We call celery directly (rather than `eai worker --queues …
-    # --concurrency …`) so the queue/concurrency flags work across
-    # all efficientai-worker image versions. Celery picks up the broker
-    # URL from the CELERY_BROKER_URL env var the pod already exports.
-    #
-    # Override here to fully customize (must be a list of argv strings).
+    # Celery pool for worker-imports (set to "threads" for I/O-bound import/eval work).
+    pool: ""
     command: []
     resources: {}
     autoscaling:
@@ -278,6 +269,9 @@ efficientai:
       minReplicas: 1
       maxReplicas: 5
       targetCPUUtilizationPercentage: 70
+    # Spread worker-imports pods across nodes for this release only (release-scoped
+    # label selector). Prefer this over hand-written topologySpreadConstraints.
+    spreadAcrossNodes: false
     deployment:
       strategy: {}
     pod:

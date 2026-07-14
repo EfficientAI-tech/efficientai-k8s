@@ -4,10 +4,11 @@ templates:
   - templates/worker-imports/deployment.yaml
   - templates/configmap.yaml
 tests:
-  - it: renders the worker deployment with worker image and command
+  - it: renders the worker without queue flags when worker-imports is disabled
     template: templates/worker/deployment.yaml
     set:
       efficientai.secretKey.value: "x"
+      efficientai.workerImports.enabled: false
     asserts:
       - hasDocuments:
           count: 1
@@ -16,9 +17,32 @@ tests:
           pattern: "^ghcr.io/efficientai-tech/efficientai-worker:.+"
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --loglevel
+          content: eai
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: --queues
 
-  - it: renders the worker-imports deployment invoking celery with --queues/--concurrency by default
+  - it: renders queue flags on worker when worker-imports is enabled
+    template: templates/worker/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.worker.queues: celery,audio-metrics
+      efficientai.worker.concurrency: 8
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --queues
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: celery,audio-metrics
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --concurrency
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "8"
+
+  - it: renders the worker-imports deployment invoking eai worker by default
     template: templates/worker-imports/deployment.yaml
     set:
       efficientai.secretKey.value: "x"
@@ -27,30 +51,36 @@ tests:
           count: 1
       - contains:
           path: spec.template.spec.containers[0].command
-          content: celery
+          content: eai
       - contains:
           path: spec.template.spec.containers[0].command
-          content: app.workers.celery_app
+          content: --queues
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --queues=imports,diarization,evaluations
+          content: imports,diarization,evaluations
       - contains:
           path: spec.template.spec.containers[0].command
-          content: --concurrency=8
+          content: --concurrency
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "8"
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: --pool
 
   - it: respects custom workerImports.concurrency and queues
     template: templates/worker-imports/deployment.yaml
     set:
       efficientai.secretKey.value: "x"
-      efficientai.workerImports.concurrency: 8
+      efficientai.workerImports.concurrency: 16
       efficientai.workerImports.queues: "imports,heavy"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].command
-          content: "--queues=imports,heavy"
+          content: imports,heavy
       - contains:
           path: spec.template.spec.containers[0].command
-          content: "--concurrency=8"
+          content: "16"
 
   - it: omits worker-imports deployment when disabled
     template: templates/worker-imports/deployment.yaml

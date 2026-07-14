@@ -69,7 +69,7 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
-            {{- toYaml .Values.efficientai.worker.command | nindent 12 }}
+            {{- include "efficientai.worker.command" . | nindent 12 }}
           env:
             {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
             {{- include "efficientai.redis.envBlock" . | nindent 12 }}

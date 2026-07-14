@@ -6,7 +6,7 @@ This chart deploys:
 
 - **web** — the FastAPI API (also serves the built frontend) — `Deployment`, `Service`, optional `Ingress`, `HPA`, `PDB`.
 - **worker** — a Celery worker for the default queue — `Deployment` (optional `HPA`, `PDB`).
-- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, and `evaluations` queues (concurrency 8 by default) — `Deployment`.
+- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, and `evaluations` queues (thread pool, concurrency 32 by default) — `Deployment`.
 - **postgresql** (optional, Bitnami subchart) — toggleable via `postgresql.deploy`.
 - **redis** (optional, Bitnami subchart) — toggleable via `redis.deploy`. Cluster mode supported via external endpoints.
 
@@ -134,15 +134,28 @@ Every component exposes the same surface:
 | `efficientai.web.ingress.tls` | `[]` |
 | `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/api/v1/health` on port `8000` |
 
+#### Worker-only
+
+| Key | Default |
+|---|---|
+| `efficientai.worker.queues` | `""` (no `--queues`; drains all queues when worker-imports is disabled) |
+| `efficientai.worker.concurrency` | `0` (omit `--concurrency` unless set > 0) |
+
+When `efficientai.workerImports.enabled=true` and `efficientai.worker.command` is empty, set `efficientai.worker.queues` / `.concurrency` to split pools (docker-compose default: `celery,audio-metrics` @ `8`). When worker-imports is disabled, leave both empty so the default worker continues draining every queue.
+
 #### Worker-imports-only
 
 | Key | Default |
 |---|---|
 | `efficientai.workerImports.enabled` | `true` |
 | `efficientai.workerImports.queues` | `imports,diarization,evaluations` |
+| `efficientai.workerImports.pool` | `""` (omit `--pool`; set to `threads` for I/O-bound work) |
 | `efficientai.workerImports.concurrency` | `8` |
+| `efficientai.workerImports.spreadAcrossNodes` | `false` (release-scoped host spread when `true`) |
 
-If `efficientai.workerImports.command` is left empty, the chart builds `celery -A app.workers.celery_app worker --loglevel=info --queues=<queues> --concurrency=<concurrency>` automatically. (We invoke `celery` directly rather than `eai worker --queues ... --concurrency ...` so the queue / concurrency flags work across all `efficientai-worker` image versions — older images' `eai worker` CLI doesn't expose those flags. Celery picks up the broker URL from the `CELERY_BROKER_URL` env the pod already exports.)
+If `efficientai.workerImports.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> [--pool <pool>] --concurrency <n>`. Requires `efficientai-worker` **>= 1.5.0** (images with `eai worker --queues/--pool/--concurrency`). For older images, set `efficientai.workerImports.command` to invoke `celery -A app.workers.celery_app worker ...` directly.
+
+For a 128-thread import/eval pool on GKE, use [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (4 pods × 32 threads, HPA to 8 pods).
 
 ### Postgres (`postgresql.*`)
 

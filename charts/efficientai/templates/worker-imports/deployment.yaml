@@ -2,13 +2,20 @@
 {{- $component := "worker-imports" -}}
 {{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
 {{- $wi := .Values.efficientai.workerImports -}}
-{{- /* We invoke celery directly (rather than `eai worker`) so the --queues
-       and --concurrency flags work across all app versions. `eai worker`
-       just shells out to celery internally, and celery picks up the broker
-       URL from the CELERY_BROKER_URL env var that the pod already exports. */ -}}
-{{- $defaultCmd := list "celery" "-A" "app.workers.celery_app" "worker" "--loglevel=info" (printf "--queues=%s" (default "imports,diarization,evaluations" $wi.queues)) (printf "--concurrency=%d" (int (default 8 $wi.concurrency))) -}}
-{{- $cmd := default $defaultCmd $wi.command -}}
-{{- if eq (len $wi.command) 0 -}}{{- $cmd = $defaultCmd -}}{{- end -}}
+{{- $autoSpread := list -}}
+{{- if $wi.spreadAcrossNodes -}}
+{{- $autoSpread = list (dict
+    "maxSkew" 1
+    "topologyKey" "kubernetes.io/hostname"
+    "whenUnsatisfiable" "DoNotSchedule"
+    "labelSelector" (dict "matchLabels" (dict
+      "app.kubernetes.io/name" (include "efficientai.name" .)
+      "app.kubernetes.io/instance" .Release.Name
+      "app.kubernetes.io/component" $component
+    ))
+  ) -}}
+{{- end -}}
+{{- $topologySpreadConstraints := concat $autoSpread ($wi.pod.topologySpreadConstraints | default list) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,9 +72,9 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with $wi.pod.topologySpreadConstraints }}
+      {{- if gt (len $topologySpreadConstraints) 0 }}
       topologySpreadConstraints:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml $topologySpreadConstraints | nindent 8 }}
       {{- end }}
       containers:
         - name: worker-imports
@@ -78,7 +85,7 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
-            {{- toYaml $cmd | nindent 12 }}
+            {{- include "efficientai.workerImports.command" . | nindent 12 }}
           env:
             {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
             {{- include "efficientai.redis.envBlock" . | nindent 12 }}

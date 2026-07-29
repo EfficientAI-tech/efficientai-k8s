@@ -6,7 +6,7 @@ This chart deploys:
 
 - **web** — the FastAPI API (also serves the built frontend) — `Deployment`, `Service`, optional `Ingress`, `HPA`, `PDB`.
 - **worker** — a Celery worker for the default queue — `Deployment` (optional `HPA`, `PDB`).
-- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, and `evaluations` queues (thread pool, concurrency 32 by default) — `Deployment`.
+- **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, `eval-control`, and `evaluations` queues (thread pool, concurrency 32 in the high-concurrency overlay) — `Deployment`.
 - **postgresql** (optional, Bitnami subchart) — toggleable via `postgresql.deploy`.
 - **redis** (optional, Bitnami subchart) — toggleable via `redis.deploy`. Cluster mode supported via external endpoints.
 
@@ -82,8 +82,11 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 | `api.prefix` / `key_header` / `rate_limit_per_minute` | `efficientai.config.api.*` | ConfigMap (verbatim) |
 | `auth.providers` / `auth.local_password.*` | `efficientai.config.auth.*` | ConfigMap (verbatim) |
 | `judge_alignment.enabled` / `csv_max_rows` | `efficientai.config.judge_alignment.*` | ConfigMap (verbatim) |
+| `workers.*` (fair-share import/eval limits) | `efficientai.config.workers.*` | ConfigMap (verbatim) |
+| `operational.public` / `operational.trusted_ips` | `efficientai.config.operational.*` | ConfigMap (verbatim — lock down `/metrics`) |
 | `observability.loki.*` | `efficientai.config.observability.loki.*` | ConfigMap (verbatim — point `url` at an external Loki) |
 | `EFFICIENTAI_LICENSE` | `efficientai.license` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
+| `DB_CATALOG_URL` / `DB_SHARD_ENTRIES` / `DB_SHARDING_ENABLED` | `additionalEnv` on web, worker, workerImports (from a Secret) | Env vars — required for data-plane sharding; see [database sharding guide](../../docs/database-sharding-and-workers.md) |
 
 ### Adding a new secret
 
@@ -143,12 +146,14 @@ Every component exposes the same surface:
 
 When `efficientai.workerImports.enabled=true` and `efficientai.worker.command` is empty, set `efficientai.worker.queues` / `.concurrency` to split pools (docker-compose default: `celery,audio-metrics` @ `8`). When worker-imports is disabled, leave both empty so the default worker continues draining every queue.
 
+Celery drains worker-imports queues **in order**: `imports` → `diarization` → `eval-control` → `evaluations`. The `eval-control` queue handles cancel, retry, and materialize operations for eval jobs.
+
 #### Worker-imports-only
 
 | Key | Default |
 |---|---|
 | `efficientai.workerImports.enabled` | `true` |
-| `efficientai.workerImports.queues` | `imports,diarization,evaluations` |
+| `efficientai.workerImports.queues` | `imports,diarization,eval-control,evaluations` |
 | `efficientai.workerImports.pool` | `""` (omit `--pool`; set to `threads` for I/O-bound work) |
 | `efficientai.workerImports.concurrency` | `8` |
 | `efficientai.workerImports.spreadAcrossNodes` | `false` (release-scoped host spread when `true`) |
@@ -162,6 +167,8 @@ When `efficientai.workerImports.enabled=true` and `efficientai.worker.command` i
 If `efficientai.workerImports.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues <queues> [--pool <pool>] --concurrency <n>`. Requires `efficientai-worker` **>= 1.5.0** (images with `eai worker --queues/--pool/--concurrency`). For older images, set `efficientai.workerImports.command` to invoke `celery -A app.workers.celery_app worker ...` directly.
 
 For a 256-thread import/eval pool on GKE with queue-depth autoscaling, use [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (8 pods × 32 threads, KEDA to 20 pods). Install the KEDA operator first: `make keda-install`.
+
+Scale `efficientai.config.workers.eval_global_inflight_limit` to roughly **worker-imports replicas × concurrency**. Full sharding and worker-limit guidance: [docs/database-sharding-and-workers.md](../../docs/database-sharding-and-workers.md).
 
 ### Postgres (`postgresql.*`)
 

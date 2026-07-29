@@ -252,14 +252,14 @@ efficientai:
   # ===========================================================================
   # worker-imports — dedicated Celery worker for call-import + evaluation
   # queues. Drains `imports` (recording fetch) before `diarization` (manual
-  # diarise), then `evaluations` (eval rows, eval-chain transcribe, post-eval
-  # LLM). Mirrors docker-compose `worker-imports` service.
+  # diarise), then `eval-control` (cancel/retry/materialize), then `evaluations`
+  # (fair dispatch + LLM scoring). Mirrors docker-compose `worker-imports` service.
   # ===========================================================================
   workerImports:
     enabled: true
     replicaCount: 1
     concurrency: 8
-    queues: imports,diarization,evaluations
+    queues: imports,diarization,eval-control,evaluations
     # Celery pool for worker-imports (set to "threads" for I/O-bound import/eval work).
     pool: ""
     command: []
@@ -270,7 +270,7 @@ efficientai:
       maxReplicas: 5
       targetCPUUtilizationPercentage: 70
     # KEDA Redis list scaler — mutually exclusive with autoscaling.enabled (CPU HPA).
-    # Scales worker-imports from Celery queue depth (imports, diarization, evaluations).
+    # Scales worker-imports from Celery queue depth (imports, diarization, eval-control, evaluations).
     keda:
       enabled: false
       minReplicaCount: 8

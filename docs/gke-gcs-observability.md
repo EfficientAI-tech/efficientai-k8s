@@ -306,7 +306,7 @@ kubectl -n "$NAMESPACE" exec -it deploy/"${RELEASE}-redis-master" -- \
   -n 0 LLEN imports
 ```
 
-Repeat for `diarization` and `evaluations`. Cross-check in Grafana: `celery_queue_length{queue_name="imports"}`.
+Repeat for `diarization`, `eval-control`, and `evaluations`. Cross-check in Grafana: `celery_queue_length{queue_name="imports"}`.
 
 ### Confirm KEDA objects
 
@@ -315,7 +315,9 @@ kubectl -n "$NAMESPACE" get scaledobject,triggerauthentication,hpa
 kubectl -n keda get pods
 ```
 
-KEDA reads `imports`, `diarization`, and `evaluations` list lengths and scales `worker-imports` to keep ~32 queued tasks per pod (max across triggers). Size your GKE node pool for **min 8 / max 20+** nodes if using `spreadAcrossNodes: true`.
+KEDA reads `imports`, `diarization`, `eval-control`, and `evaluations` list lengths and scales `worker-imports` to keep ~32 queued tasks per pod (max across triggers). Size your GKE node pool for **min 8 / max 20+** nodes if using `spreadAcrossNodes: true`.
+
+Tune `efficientai.config.workers.eval_global_inflight_limit` to match worker-imports replicas × concurrency — see [`docs/database-sharding-and-workers.md`](database-sharding-and-workers.md).
 
 **Note:** the default `worker` pool (`celery`, `audio-metrics`) is not KEDA-scaled in this overlay. Add separate KEDA triggers if you autoscale that deployment later.
 
@@ -381,3 +383,4 @@ make keda-uninstall                   # remove KEDA operator
 | [`examples/observability/loki.yaml`](../examples/observability/loki.yaml) | Loki Helm values |
 | [`examples/observability/kube-prometheus-stack.yaml`](../examples/observability/kube-prometheus-stack.yaml) | Prometheus + Grafana Helm values |
 | [`examples/observability/servicemonitor.yaml`](../examples/observability/servicemonitor.yaml) | Prometheus scrape config |
+| [`docs/database-sharding-and-workers.md`](database-sharding-and-workers.md) | Data-plane sharding, `eval-control` queue, `workers.*` fair-share limits |

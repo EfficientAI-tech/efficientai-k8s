@@ -1,0 +1,109 @@
+# External PostgreSQL with data-plane sharding (catalog + data shards).
+#
+# Mirrors efficientAI/config.yml.example database.sharding section.
+# Connection URLs MUST stay in Secrets / env vars — the chart strips database
+# URLs from the ConfigMap. See docs/database-sharding-and-workers.md.
+#
+# Prerequisites:
+#   - Catalog DB: efficientai_catalog
+#   - Data shards: efficientai_data_01, efficientai_data_02, …
+#   - Migrations applied on each physical database
+#   - Kubernetes Secret `efficientai-db-sharding` with keys:
+#       catalog-url   → postgresql://user:pass@host:5432/efficientai_catalog
+#       shard-entries → JSON array, e.g.:
+#         [{"id":"data-shard-01","url":"postgresql://...@host/efficientai_data_01"}, ...]
+#
+# Usage:
+#   helm upgrade --install efficientai charts/efficientai \
+#     -f examples/database-sharding.yaml \
+#     -f examples/gke/values-gke-high-concurrency.yaml   # optional: scale worker-imports
+
+postgresql:
+  deploy: false
+  host: postgres.example.com
+  port: 5432
+  auth:
+    username: efficientai
+    existingSecret: efficientai-postgres
+    secretKeys:
+      userPasswordKey: password
+
+efficientai:
+  config:
+    # Fair-share limits — tune eval_global_inflight_limit to
+    # worker-imports replicas × concurrency (see high-concurrency overlay).
+    workers:
+      eval_global_inflight_limit: 256
+      eval_org_inflight_limit: 256
+      eval_workspace_inflight_limit: 26
+      eval_job_inflight_limit: 75
+      eval_fair_dispatch_batch_size: 75
+      diarization_fair_dispatch_batch_size: 75
+      import_fair_dispatch_batch_size: 75
+      import_global_inflight_limit: 16
+      import_org_inflight_limit: 16
+      import_workspace_inflight_limit: 8
+
+  workerImports:
+    enabled: true
+    queues: imports,diarization,eval-control,evaluations
+    pool: threads
+    concurrency: 32
+
+  # Sharding env vars — repeat on web, worker, and worker-imports.
+  web:
+    additionalEnv:
+      - name: DB_SHARDING_ENABLED
+        value: "true"
+      - name: DB_POOL_SIZE
+        value: "5"
+      - name: DB_MAX_OVERFLOW
+        value: "10"
+      - name: DB_CATALOG_URL
+        valueFrom:
+          secretKeyRef:
+            name: efficientai-db-sharding
+            key: catalog-url
+      - name: DB_SHARD_ENTRIES
+        valueFrom:
+          secretKeyRef:
+            name: efficientai-db-sharding
+            key: shard-entries
+
+  worker:
+    additionalEnv:
+      - name: DB_SHARDING_ENABLED
+        value: "true"
+      - name: DB_POOL_SIZE
+        value: "5"
+      - name: DB_MAX_OVERFLOW
+        value: "10"
+      - name: DB_CATALOG_URL
+        valueFrom:
+          secretKeyRef:
+            name: efficientai-db-sharding
+            key: catalog-url
+      - name: DB_SHARD_ENTRIES
+        valueFrom:
+          secretKeyRef:
+            name: efficientai-db-sharding
+            key: shard-entries
+
+  workerImports:
+    additionalEnv:
+      - name: DB_SHARDING_ENABLED
+        value: "true"
+      - name: DB_POOL_SIZE
+        value: "5"
+      - name: DB_MAX_OVERFLOW
+        value: "10"
+      - name: DB_CATALOG_URL
+        valueFrom:
+          secretKeyRef:
+            name: efficientai-db-sharding
+            key: catalog-url
+      - name: DB_SHARD_ENTRIES
+        valueFrom:
+          secretKeyRef:
+            name: efficientai-db-sharding
+            key: shard-entries

@@ -332,7 +332,7 @@ Usage: {{- include "efficientai.workerImports.command" . | nindent 12 }}
 {{ toYaml $wi.command }}
 {{- else -}}
 {{- $args := list "eai" "worker" "--config" "/app/config.yml" "--loglevel" "info" -}}
-{{- $args = concat $args (list "--queues" (default "imports,diarization,evaluations" $wi.queues)) -}}
+{{- $args = concat $args (list "--queues" (default "imports,diarization,eval-control,evaluations" $wi.queues)) -}}
 {{- with $wi.pool -}}
 {{- if ne . "" -}}
 {{- $args = concat $args (list "--pool" .) -}}
@@ -392,6 +392,6 @@ Returns a comma-separated string for splitList in templates.
 {{- if gt (len $kedaQueues) 0 -}}
 {{- join "," $kedaQueues -}}
 {{- else -}}
-{{- $wi.queues | default "imports,diarization,evaluations" -}}
+{{- $wi.queues | default "imports,diarization,eval-control,evaluations" -}}
 {{- end -}}
 {{- end -}}

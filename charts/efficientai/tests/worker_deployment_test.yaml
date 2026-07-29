@@ -57,7 +57,7 @@ tests:
           content: --queues
       - contains:
           path: spec.template.spec.containers[0].command
-          content: imports,diarization,evaluations
+          content: imports,diarization,eval-control,evaluations
       - contains:
           path: spec.template.spec.containers[0].command
           content: --concurrency

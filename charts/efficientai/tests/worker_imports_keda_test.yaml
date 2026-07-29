@@ -36,6 +36,9 @@ tests:
           value: diarization
       - equal:
           path: spec.triggers[2].metadata.listName
+          value: eval-control
+      - equal:
+          path: spec.triggers[3].metadata.listName
           value: evaluations
       - matchRegex:
           path: spec.triggers[0].metadata.address

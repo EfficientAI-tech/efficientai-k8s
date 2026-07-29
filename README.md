@@ -6,7 +6,7 @@ Helm chart for deploying [EfficientAI](https://github.com/EfficientAI-tech/effic
 
 - `charts/efficientai` — the Helm chart (umbrella with Postgres + Redis as Bitnami subcharts).
 - `examples/` — values overlays and manifests; see [`examples/README.md`](examples/README.md) for the index.
-- `docs/` — deployment guides (GKE with GCS and Prometheus/Grafana).
+- `docs/` — deployment guides (GKE with GCS and Prometheus/Grafana; database sharding and worker concurrency).
 - `.github/workflows/` — lint/test on PRs and chart-releaser publish to GitHub Pages on `main`.
 
 ## Important: Bitnami Registry Changes
@@ -75,7 +75,7 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 
 | App setting | Where you set it | How it reaches the pod |
 |---|---|---|
-| Plain config (`app.debug`, `cors.origins`, `auth.providers`, `judge_alignment.*`, `storage.*`, `diarization.num_speakers`, `observability.loki.*`, ...) | `efficientai.config.*` (same nested shape as `config.yml`) | Verbatim in the ConfigMap |
+| Plain config (`app.debug`, `cors.origins`, `auth.providers`, `judge_alignment.*`, `storage.*`, `diarization.num_speakers`, `workers.*`, `operational.*`, `observability.loki.*`, ...) | `efficientai.config.*` (same nested shape as [`config.yml.example`](https://github.com/EfficientAI-tech/efficientAI/blob/main/config.yml.example)) | Verbatim in the ConfigMap |
 | `DATABASE_URL` | `postgresql.*` (in-cluster) or `postgresql.deploy: false` + `host` (external) | Env var: built from `POSTGRES_USER`/`PASSWORD`/`HOST`/`PORT`/`DB`. **Not** written to `config.yml`. |
 | `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` | `redis.*` (in-cluster) or `redis.deploy: false` + `host` / `cluster.nodes` | Env vars: built from `REDIS_HOST`/`PORT`/auth. **Not** written to `config.yml`. |
 | `storage.blob_provider` | `s3.enabled` / `gcs.enabled` | Rendered into the ConfigMap (`s3` by default, `gcs` when GCS is enabled) |
@@ -93,6 +93,10 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 **Anything you set under `efficientai.config.{database,redis,celery,license,app.secret_key,diarization.huggingface_token}` is stripped** by the ConfigMap template, so you can't accidentally leak a secret into a ConfigMap.
 
 **Extending it:** to add a new non-secret config field, just add it under `efficientai.config.*` — it flows through `toYaml` automatically, no template change required. For a new secret field, see the "Adding a new secret" recipe in [`charts/efficientai/README.md`](charts/efficientai/README.md#adding-a-new-secret).
+
+**Database sharding and worker limits:** single-DB mode uses `DATABASE_URL` from the chart (default). For catalog + data-shard deployments and Redis fair-share tuning (`workers.eval_global_inflight_limit`, etc.), see [`docs/database-sharding-and-workers.md`](docs/database-sharding-and-workers.md).
+
+**Celery queue split:** when `workerImports.enabled=true`, the default worker drains `celery,audio-metrics` and worker-imports drains `imports,diarization,eval-control,evaluations` (thread pool recommended for I/O-bound import/eval work). Mirrors [`docker-compose.yml`](https://github.com/EfficientAI-tech/efficientAI/blob/main/docker-compose.yml).
 
 ### Sizing
 
@@ -155,6 +159,7 @@ Every example in `examples/` is a values overlay or manifest. See [`examples/REA
 | File | What it demonstrates |
 |---|---|
 | `external-postgres.yaml` | `postgresql.deploy: false`, external host, existingSecret, plus optional TLS / client cert via `extraVolumes` + `additionalEnv` |
+| `database-sharding.yaml` | External Postgres with catalog + data shards (`DB_CATALOG_URL`, `DB_SHARD_ENTRIES`) and `workers.*` fair-share limits |
 | `external-redis.yaml` | External standalone Redis and external Redis Cluster (e.g. AWS ElastiCache config endpoint) |
 | `external-s3.yaml` | External S3 bucket with credentials sourced via `secretKeyRef` |
 | `gke/values-gcs.yaml` | GKE + GCS via Workload Identity, observability config, GCE Ingress |

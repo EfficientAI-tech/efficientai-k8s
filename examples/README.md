@@ -4,6 +4,8 @@ Helm values overlays and Kubernetes manifests for common deployment patterns.
 
 **GKE + GCS + observability:** see [`docs/gke-gcs-observability.md`](../docs/gke-gcs-observability.md).
 
+**Database sharding + worker fair-share limits:** see [`docs/database-sharding-and-workers.md`](../docs/database-sharding-and-workers.md).
+
 ## Layout
 
 | Path | Use when |
@@ -17,6 +19,7 @@ Helm values overlays and Kubernetes manifests for common deployment patterns.
 | File | Purpose |
 |------|---------|
 | `external-postgres.yaml` | External PostgreSQL instead of in-cluster |
+| `database-sharding.yaml` | External Postgres with catalog + data shards and `workers.*` limits |
 | `external-redis.yaml` | External Redis or Redis Cluster |
 | `external-s3.yaml` | AWS S3 blob storage |
 | `ingress-alb.yaml` | AWS Application Load Balancer ingress |
@@ -32,7 +35,7 @@ helm install efficientai charts/efficientai -f examples/external-postgres.yaml
 | File | Required |
 |------|----------|
 | `gke/values-gcs.yaml` | Yes — app + GCS + Loki config |
-| `gke/values-gke-high-concurrency.yaml` | Optional — 4–8 worker-imports pods × 32 threads |
+| `gke/values-gke-high-concurrency.yaml` | Optional — 8–20 worker-imports pods × 32 threads (KEDA) |
 | `gke/managed-cert-app.yaml` | Yes — TLS for app hostname |
 | `observability/loki.yaml` | Yes — via `make observability-install` |
 | `observability/kube-prometheus-stack.yaml` | Yes — via `make observability-install` |

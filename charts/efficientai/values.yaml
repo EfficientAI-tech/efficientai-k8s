@@ -312,6 +312,8 @@ efficientai:
     replicaCount: 1
     platformQueue: platform
     platformConcurrency: 2
+    # Time for Celery Beat + platform worker to finish in-flight tasks on rollout.
+    terminationGracePeriodSeconds: 60
     command: []
     resources: {}
     deployment:

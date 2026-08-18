@@ -180,8 +180,9 @@ Scale `efficientai.config.workers.eval_global_inflight_limit` to roughly **worke
 | `efficientai.beat.replicaCount` | `1` (**must stay 1** — Celery Beat is not HA-safe) |
 | `efficientai.beat.platformQueue` | `platform` |
 | `efficientai.beat.platformConcurrency` | `2` |
+| `efficientai.beat.terminationGracePeriodSeconds` | `60` |
 
-If `efficientai.beat.command` is left empty, the chart runs Celery Beat plus a co-located platform queue worker in one container. A shell supervision loop exits (and Kubernetes restarts the pod) if either process dies — stricter than docker-compose `beat`, which leaves a dead platform worker undetected. Do not enable HPA or scale beat beyond one replica.
+If `efficientai.beat.command` is left empty, the chart runs Celery Beat plus a co-located platform queue worker in one container. A shell supervision loop exits (and Kubernetes restarts the pod) if either process dies. `trap shutdown TERM INT` forwards pod termination signals to both Celery processes for warm shutdown during rollouts — stricter than docker-compose `beat`. Do not enable HPA or scale beat beyond one replica.
 
 #### Worker-usage-only
 

@@ -25,6 +25,22 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'kill -0 "\$WORKER_PID"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'trap shutdown TERM INT'
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 60
+
+  - it: respects custom terminationGracePeriodSeconds
+    template: templates/beat/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.beat.terminationGracePeriodSeconds: 120
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 120
 
   - it: respects custom beat platform queue and concurrency
     template: templates/beat/deployment.yaml

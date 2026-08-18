@@ -35,6 +35,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "efficientai.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ $b.terminationGracePeriodSeconds | default 60 }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

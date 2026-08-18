@@ -345,7 +345,8 @@ Usage: {{- include "efficientai.workerImports.command" . | nindent 12 }}
 
 {{/*
 Build the default beat container command unless efficientai.beat.command is set.
-Runs Celery Beat (foreground) plus a co-located platform queue worker (background).
+Runs Celery Beat plus a co-located platform queue worker in one container.
+A supervision loop exits (and Kubernetes restarts the pod) if either process dies.
 Usage: {{- include "efficientai.beat.command" . | nindent 12 }}
 */}}
 {{- define "efficientai.beat.command" -}}
@@ -357,7 +358,7 @@ Usage: {{- include "efficientai.beat.command" . | nindent 12 }}
 {{- $concurrency := default 2 $b.platformConcurrency -}}
 - sh
 - -c
-- celery -A app.workers.celery_app worker -Q {{ $queue }} --pool threads --concurrency {{ $concurrency }} --loglevel=info & exec celery -A app.workers.celery_app beat --loglevel=info
+- celery -A app.workers.celery_app worker -Q {{ $queue }} --pool threads --concurrency {{ $concurrency }} --loglevel=info & WORKER_PID=$!; celery -A app.workers.celery_app beat --loglevel=info & BEAT_PID=$!; while kill -0 "$WORKER_PID" 2>/dev/null && kill -0 "$BEAT_PID" 2>/dev/null; do sleep 2; done; kill "$WORKER_PID" "$BEAT_PID" 2>/dev/null; wait; exit 1
 {{- end -}}
 {{- end -}}
 

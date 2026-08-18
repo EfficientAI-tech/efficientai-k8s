@@ -21,7 +21,10 @@ tests:
           pattern: "celery -A app.workers.celery_app worker -Q platform"
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: "exec celery -A app.workers.celery_app beat"
+          pattern: "celery -A app.workers.celery_app beat"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kill -0 "\$WORKER_PID"'
 
   - it: respects custom beat platform queue and concurrency
     template: templates/beat/deployment.yaml

@@ -303,6 +303,66 @@ efficientai:
     extraVolumes: []
     extraVolumeMounts: []
 
+  # ===========================================================================
+  # beat — Celery Beat scheduler + co-located platform queue worker (single
+  # replica only; do not scale). Mirrors docker-compose `beat` service.
+  # ===========================================================================
+  beat:
+    enabled: true
+    replicaCount: 1
+    platformQueue: platform
+    platformConcurrency: 2
+    command: []
+    resources: {}
+    deployment:
+      strategy: {}
+    pod:
+      annotations: {}
+      labels: {}
+      topologySpreadConstraints: []
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      securityContext: {}
+    containerSecurityContext: {}
+    hostAliases: []
+    additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
+
+  # ===========================================================================
+  # worker-usage — low-priority usage pricing (Redis flush + cost recompute).
+  # Mirrors docker-compose `worker-usage` service.
+  # ===========================================================================
+  workerUsage:
+    enabled: true
+    replicaCount: 1
+    queues: usage
+    pool: threads
+    concurrency: 4
+    command: []
+    resources: {}
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    deployment:
+      strategy: {}
+    pod:
+      annotations: {}
+      labels: {}
+      topologySpreadConstraints: []
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      securityContext: {}
+    containerSecurityContext: {}
+    hostAliases: []
+    additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
+
 # =============================================================================
 # postgresql (Bitnami subchart) — toggleable via `deploy:`
 #

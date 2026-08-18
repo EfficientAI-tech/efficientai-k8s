@@ -344,6 +344,45 @@ Usage: {{- include "efficientai.workerImports.command" . | nindent 12 }}
 {{- end -}}
 
 {{/*
+Build the default beat container command unless efficientai.beat.command is set.
+Runs Celery Beat (foreground) plus a co-located platform queue worker (background).
+Usage: {{- include "efficientai.beat.command" . | nindent 12 }}
+*/}}
+{{- define "efficientai.beat.command" -}}
+{{- $b := .Values.efficientai.beat -}}
+{{- if gt (len $b.command) 0 -}}
+{{ toYaml $b.command }}
+{{- else -}}
+{{- $queue := default "platform" $b.platformQueue -}}
+{{- $concurrency := default 2 $b.platformConcurrency -}}
+- sh
+- -c
+- celery -A app.workers.celery_app worker -Q {{ $queue }} --pool threads --concurrency {{ $concurrency }} --loglevel=info & exec celery -A app.workers.celery_app beat --loglevel=info
+{{- end -}}
+{{- end -}}
+
+{{/*
+Build the default worker-usage container command unless efficientai.workerUsage.command is set.
+Usage: {{- include "efficientai.workerUsage.command" . | nindent 12 }}
+*/}}
+{{- define "efficientai.workerUsage.command" -}}
+{{- $wu := .Values.efficientai.workerUsage -}}
+{{- if gt (len $wu.command) 0 -}}
+{{ toYaml $wu.command }}
+{{- else -}}
+{{- $args := list "eai" "worker" "--config" "/app/config.yml" "--loglevel" "info" -}}
+{{- $args = concat $args (list "--queues" (default "usage" $wu.queues)) -}}
+{{- with $wu.pool -}}
+{{- if ne . "" -}}
+{{- $args = concat $args (list "--pool" .) -}}
+{{- end -}}
+{{- end -}}
+{{- $args = concat $args (list "--concurrency" (printf "%d" (int (default 4 $wu.concurrency)))) -}}
+{{ toYaml $args }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 True when Redis auth credentials are configured (matches efficientai.redis.envBlock).
 */}}
 {{- define "efficientai.redis.authEnabled" -}}

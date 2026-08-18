@@ -96,7 +96,7 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 
 **Database sharding and worker limits:** single-DB mode uses `DATABASE_URL` from the chart (default). For catalog + data-shard deployments and Redis fair-share tuning (`workers.eval_global_inflight_limit`, etc.), see [`docs/database-sharding-and-workers.md`](docs/database-sharding-and-workers.md).
 
-**Celery queue split:** when `workerImports.enabled=true`, the default worker drains `celery,audio-metrics` and worker-imports drains `imports,diarization,eval-control,evaluations` (thread pool recommended for I/O-bound import/eval work). Mirrors [`docker-compose.yml`](https://github.com/EfficientAI-tech/efficientAI/blob/main/docker-compose.yml).
+**Celery queue split:** when `workerImports.enabled=true`, the default worker drains `celery,audio-metrics`, worker-imports drains `imports,diarization,eval-control,evaluations`, **beat** runs Celery Beat plus the `platform` queue (single replica), and **worker-usage** drains the `usage` queue. Mirrors [`docker-compose.yml`](https://github.com/EfficientAI-tech/efficientAI/blob/main/docker-compose.yml).
 
 ### Sizing
 

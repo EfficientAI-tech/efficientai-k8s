@@ -1,0 +1,80 @@
+suite: worker-usage deployment
+templates:
+  - templates/worker-usage/deployment.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders eai worker with usage queue and default concurrency
+    template: templates/worker-usage/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: eai
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: worker
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --queues
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: usage
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --pool
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: threads
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: --concurrency
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "4"
+
+  - it: respects custom workerUsage pool and concurrency
+    template: templates/worker-usage/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.pool: threads
+      efficientai.workerUsage.concurrency: 8
+      efficientai.workerUsage.queues: "usage,billing"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: usage,billing
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "8"
+
+  - it: uses a fully custom command when workerUsage.command is set
+    template: templates/worker-usage/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.command:
+        - celery
+        - -A
+        - app.workers.celery_app
+        - worker
+        - -Q
+        - usage
+        - --loglevel=info
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: celery
+      - notContains:
+          path: spec.template.spec.containers[0].command
+          content: eai
+
+  - it: omits worker-usage deployment when disabled
+    template: templates/worker-usage/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

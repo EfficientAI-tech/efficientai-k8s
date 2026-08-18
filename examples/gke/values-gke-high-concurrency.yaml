@@ -3,6 +3,8 @@
 # Mirrors the EfficientAI AWS ECS / docker-compose worker split:
 #   worker         → celery,audio-metrics  (concurrency 8)
 #   worker-imports → imports,diarization,eval-control,evaluations (threads pool, concurrency 32)
+#   beat           → Celery Beat + platform queue (single replica)
+#   worker-usage   → usage queue (threads pool, concurrency 4)
 #
 # Steady state: 8 pods × 32 threads = 256 concurrent import/eval workers.
 # KEDA ceiling: 20 pods × 32 threads = 640 concurrent import/eval workers.
@@ -62,6 +64,18 @@ efficientai:
       minReplicaCount: 8
       maxReplicaCount: 20
       listLength: 32
+
+  beat:
+    enabled: true
+    resources:
+      requests: { cpu: "250m", memory: "512Mi" }
+      limits:   { cpu: "500m", memory: "1Gi" }
+
+  workerUsage:
+    enabled: true
+    resources:
+      requests: { cpu: "500m", memory: "1Gi" }
+      limits:   { cpu: "1", memory: "2Gi" }
 
 postgresql:
   primary:

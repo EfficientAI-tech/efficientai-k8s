@@ -9,6 +9,12 @@ Components deployed:
 {{- if .Values.efficientai.workerImports.enabled }}
   - worker-imports       : Deployment "{{ include "efficientai.componentFullname" (dict "root" . "component" "worker-imports") }}"
 {{- end }}
+{{- if .Values.efficientai.beat.enabled }}
+  - beat                 : Deployment "{{ include "efficientai.componentFullname" (dict "root" . "component" "beat") }}" (single replica)
+{{- end }}
+{{- if .Values.efficientai.workerUsage.enabled }}
+  - worker-usage         : Deployment "{{ include "efficientai.componentFullname" (dict "root" . "component" "worker-usage") }}"
+{{- end }}
 {{- if .Values.postgresql.deploy }}
   - postgresql (subchart): {{ .Release.Name }}-postgresql
 {{- else }}
@@ -58,4 +64,12 @@ Default worker drains: {{ default "celery,audio-metrics" .Values.efficientai.wor
 Worker-imports drains: {{ .Values.efficientai.workerImports.queues }}.
 Requires efficientai-worker image with `eai worker --queues/--pool/--concurrency` support (>= 1.5.0).
 For older images, set efficientai.workerImports.command to invoke celery directly.
+{{- end }}
+{{- if .Values.efficientai.beat.enabled }}
+
+Beat runs Celery Beat (scheduler) plus a co-located platform queue worker. Keep efficientai.beat.replicaCount at 1.
+{{- end }}
+{{- if .Values.efficientai.workerUsage.enabled }}
+
+Worker-usage drains: {{ .Values.efficientai.workerUsage.queues }} (usage pricing / Redis flush).
 {{- end }}

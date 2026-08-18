@@ -2,7 +2,7 @@ apiVersion: v2
 name: efficientai
 description: A Helm chart for the EfficientAI Voice AI Evaluation Platform
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "1.5.7"
 kubeVersion: ">=1.23.0-0"
 home: https://github.com/EfficientAI-tech/efficientai-k8s

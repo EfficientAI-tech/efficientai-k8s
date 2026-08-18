@@ -1,6 +1,7 @@
 suite: worker-usage deployment
 templates:
   - templates/worker-usage/deployment.yaml
+  - templates/worker-usage/hpa.yaml
   - templates/configmap.yaml
 tests:
   - it: renders eai worker with usage queue and default concurrency
@@ -75,6 +76,47 @@ tests:
     set:
       efficientai.secretKey.value: "x"
       efficientai.workerUsage.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: omits replicas when autoscaling is enabled
+    template: templates/worker-usage/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: renders CPU HPA when autoscaling is enabled
+    template: templates/worker-usage/hpa.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.autoscaling.enabled: true
+      efficientai.workerUsage.autoscaling.minReplicas: 2
+      efficientai.workerUsage.autoscaling.maxReplicas: 6
+      efficientai.workerUsage.autoscaling.targetCPUUtilizationPercentage: 70
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 6
+      - equal:
+          path: spec.metrics[0].resource.target.averageUtilization
+          value: 70
+
+  - it: omits HPA when autoscaling is disabled
+    template: templates/worker-usage/hpa.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.autoscaling.enabled: false
     asserts:
       - hasDocuments:
           count: 0

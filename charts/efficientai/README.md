@@ -191,8 +191,12 @@ If `efficientai.beat.command` is left empty, the chart runs Celery Beat plus a c
 | `efficientai.workerUsage.queues` | `usage` |
 | `efficientai.workerUsage.pool` | `threads` |
 | `efficientai.workerUsage.concurrency` | `4` |
+| `efficientai.workerUsage.autoscaling.enabled` | `false` |
+| `efficientai.workerUsage.autoscaling.minReplicas` / `maxReplicas` / `targetCPUUtilizationPercentage` | `1` / `5` / `70` |
 
 If `efficientai.workerUsage.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues usage --pool threads --concurrency 4`.
+
+When `efficientai.workerUsage.autoscaling.enabled=true`, the chart omits `spec.replicas` on the Deployment and creates a CPU `HorizontalPodAutoscaler` (same pattern as `efficientai.worker`).
 
 ### Postgres (`postgresql.*`)
 

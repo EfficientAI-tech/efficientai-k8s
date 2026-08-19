@@ -4,14 +4,16 @@ EfficientAI **>= 1.6** adds optional **data-plane sharding** (catalog + data sha
 
 This guide covers how those settings map to the Helm chart.
 
-## Celery queue split (worker-imports)
+## Celery queue split
 
-Docker Compose and the chart split Celery into two pools:
+Docker Compose and the chart split Celery into dedicated pools:
 
-| Pool | Queues | Pool type | Default concurrency |
-|------|--------|-----------|---------------------|
-| **worker** | `celery`, `audio-metrics` | prefork (default) | 8 |
-| **worker-imports** | `imports`, `diarization`, `eval-control`, `evaluations` | `threads` (recommended) | 8 (32 in high-concurrency overlay) |
+| Pool | Queues / role | Pool type | Default concurrency | Replicas |
+|------|---------------|-----------|---------------------|----------|
+| **worker** | `celery`, `audio-metrics` | prefork (default) | 8 | scalable |
+| **worker-imports** | `imports`, `diarization`, `eval-control`, `evaluations` | `threads` (recommended) | 8 (32 in high-concurrency overlay) | scalable |
+| **beat** | Celery Beat + `platform` queue worker | `threads` (platform worker) | 2 | **1 only** |
+| **worker-usage** | `usage` | `threads` | 4 | 1 default |
 
 Celery drains queues **in list order**:
 
@@ -33,6 +35,12 @@ efficientai:
     queues: imports,diarization,eval-control,evaluations
     pool: threads
     concurrency: 32   # high-concurrency overlay
+
+  beat:
+    enabled: true
+
+  workerUsage:
+    enabled: true
 ```
 
 When using KEDA queue-depth autoscaling, include **`eval-control`** in the trigger list (it inherits from `workerImports.queues` by default). See [`docs/gke-gcs-observability.md`](gke-gcs-observability.md#step-9--queue-depth-autoscaling-with-keda-optional).

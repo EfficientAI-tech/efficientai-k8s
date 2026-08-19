@@ -1,0 +1,103 @@
+{{- if .Values.efficientai.beat.enabled -}}
+{{- $component := "beat" -}}
+{{- $name := include "efficientai.componentFullname" (dict "root" . "component" $component) -}}
+{{- $b := .Values.efficientai.beat -}}
+{{- if ne (int $b.replicaCount) 1 -}}
+{{- fail "efficientai.beat.replicaCount must be 1 — Celery Beat is not safe to run with multiple replicas" -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  {{- with $b.deployment.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- with $b.pod.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with $b.pod.annotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "efficientai.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ $b.terminationGracePeriodSeconds | default 60 }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.pod.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.pod.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.pod.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.pod.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.pod.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: beat
+          image: {{ include "efficientai.image" (dict "root" . "type" "worker") | quote }}
+          imagePullPolicy: {{ .Values.efficientai.image.pullPolicy }}
+          {{- with $b.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            {{- include "efficientai.beat.command" . | nindent 12 }}
+          env:
+            {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
+            {{- include "efficientai.redis.envBlock" . | nindent 12 }}
+            {{- include "efficientai.appEnvBlock" . | nindent 12 }}
+            {{- with $b.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yml
+              subPath: config.yml
+              readOnly: true
+            {{- with $b.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $b.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "efficientai.fullname" . }}-config
+        {{- with $b.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}

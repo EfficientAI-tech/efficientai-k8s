@@ -1,0 +1,26 @@
+{{- if and .Values.efficientai.workerUsage.enabled .Values.efficientai.workerUsage.autoscaling.enabled -}}
+{{- $component := "worker-usage" -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "efficientai.componentFullname" (dict "root" . "component" $component) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "efficientai.componentFullname" (dict "root" . "component" $component) }}
+  minReplicas: {{ .Values.efficientai.workerUsage.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.efficientai.workerUsage.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.efficientai.workerUsage.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.efficientai.workerUsage.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}

@@ -7,6 +7,8 @@ This chart deploys:
 - **web** — the FastAPI API (also serves the built frontend) — `Deployment`, `Service`, optional `Ingress`, `HPA`, `PDB`.
 - **worker** — a Celery worker for the default queue — `Deployment` (optional `HPA`, `PDB`).
 - **worker-imports** — a dedicated Celery worker for the `imports`, `diarization`, `eval-control`, and `evaluations` queues (thread pool, concurrency 32 in the high-concurrency overlay) — `Deployment`.
+- **beat** — Celery Beat scheduler plus co-located `platform` queue worker (single replica only) — `Deployment`.
+- **worker-usage** — dedicated Celery worker for the `usage` queue (usage pricing / Redis flush) — `Deployment`.
 - **postgresql** (optional, Bitnami subchart) — toggleable via `postgresql.deploy`.
 - **redis** (optional, Bitnami subchart) — toggleable via `redis.deploy`. Cluster mode supported via external endpoints.
 
@@ -102,7 +104,7 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 
 Just add it under `efficientai.config.*` — no template change needed. It flows through `toYaml` into the rendered `config.yml`.
 
-### Components (`efficientai.web`, `efficientai.worker`, `efficientai.workerImports`)
+### Components (`efficientai.web`, `efficientai.worker`, `efficientai.workerImports`, `efficientai.beat`, `efficientai.workerUsage`)
 
 Every component exposes the same surface:
 
@@ -169,6 +171,33 @@ If `efficientai.workerImports.command` is left empty, the chart builds `eai work
 For a 256-thread import/eval pool on GKE with queue-depth autoscaling, use [examples/gke/values-gke-high-concurrency.yaml](../../examples/gke/values-gke-high-concurrency.yaml) (8 pods × 32 threads, KEDA to 20 pods). Install the KEDA operator first: `make keda-install`.
 
 Scale `efficientai.config.workers.eval_global_inflight_limit` to roughly **worker-imports replicas × concurrency**. Full sharding and worker-limit guidance: [docs/database-sharding-and-workers.md](../../docs/database-sharding-and-workers.md).
+
+#### Beat-only
+
+| Key | Default |
+|---|---|
+| `efficientai.beat.enabled` | `true` |
+| `efficientai.beat.replicaCount` | `1` (**must stay 1** — Celery Beat is not HA-safe) |
+| `efficientai.beat.platformQueue` | `platform` |
+| `efficientai.beat.platformConcurrency` | `2` |
+| `efficientai.beat.terminationGracePeriodSeconds` | `60` |
+
+If `efficientai.beat.command` is left empty, the chart runs Celery Beat plus a co-located platform queue worker in one container. A shell supervision loop exits (and Kubernetes restarts the pod) if either process dies. `trap shutdown TERM INT` forwards pod termination signals to both Celery processes for warm shutdown during rollouts — stricter than docker-compose `beat`. Do not enable HPA or scale beat beyond one replica.
+
+#### Worker-usage-only
+
+| Key | Default |
+|---|---|
+| `efficientai.workerUsage.enabled` | `true` |
+| `efficientai.workerUsage.queues` | `usage` |
+| `efficientai.workerUsage.pool` | `threads` |
+| `efficientai.workerUsage.concurrency` | `4` |
+| `efficientai.workerUsage.autoscaling.enabled` | `false` |
+| `efficientai.workerUsage.autoscaling.minReplicas` / `maxReplicas` / `targetCPUUtilizationPercentage` | `1` / `5` / `70` |
+
+If `efficientai.workerUsage.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues usage --pool threads --concurrency 4`.
+
+When `efficientai.workerUsage.autoscaling.enabled=true`, the chart omits `spec.replicas` on the Deployment and creates a CPU `HorizontalPodAutoscaler` (same pattern as `efficientai.worker`).
 
 ### Postgres (`postgresql.*`)
 

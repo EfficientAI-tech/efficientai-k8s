@@ -77,6 +77,8 @@ kubectl -n "$NAMESPACE" rollout status statefulset/${RELEASE}-redis-master      
 kubectl -n "$NAMESPACE" rollout status deployment/${RELEASE}-efficientai-web        --timeout=300s || true
 kubectl -n "$NAMESPACE" rollout status deployment/${RELEASE}-efficientai-worker     --timeout=300s || true
 kubectl -n "$NAMESPACE" rollout status deployment/${RELEASE}-efficientai-worker-imports --timeout=300s || true
+kubectl -n "$NAMESPACE" rollout status deployment/${RELEASE}-efficientai-beat          --timeout=300s || true
+kubectl -n "$NAMESPACE" rollout status deployment/${RELEASE}-efficientai-worker-usage   --timeout=300s || true
 
 echo
 echo "==> Final state:"

@@ -13,6 +13,9 @@ tests:
       - equal:
           path: spec.replicas
           value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
       - contains:
           path: spec.template.spec.containers[0].command
           content: sh

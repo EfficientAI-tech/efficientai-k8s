@@ -6,11 +6,20 @@
 #   cp examples/self-host-production-security.yaml my-prod-values.yaml
 #   # edit hostnames, ingress class/annotations for your cloud
 #   helm upgrade --install efficientai charts/efficientai -n efficientai \
-#     -f my-prod-values.yaml --wait
+#     -f my-prod-values.yaml --wait=false
 #
-# After upgrading from images without cookie sessions, run DB migrations once:
-#   kubectl -n efficientai exec deploy/efficientai-efficientai-web -- eai migrate
-# See docs/self-host-security.md for a Job-based migrate pattern.
+# PR #124+ readiness returns 503 until DB migrations finish — do not use --wait until
+# after migrate (see docs/self-host-security.md). Then:
+#   kubectl -n efficientai exec deploy/efficientai-web -- eai migrate
+#   kubectl -n efficientai rollout status deploy/efficientai-web --timeout=10m
+#
+# Upgrades with no pending migrations can use --wait on helm upgrade directly.
+#
+# operational.trusted_ips: usually omit this block — PR #124+ app defaults already trust
+# 10.0.0.0/8, 172.16.0.0/12, 127.0.0.0/8 on purpose (kubelet/node IPs, in-VPC LBs, probes).
+# Only set trusted_ips if your cluster is outside those defaults; if you override the whole list,
+# re-include what you still need (often the same RFC1918 ranges + your org-specific CIDRs).
+# See docs/self-host-security.md#operational-trusted-ips
 
 efficientai:
   secretKey:
@@ -31,10 +40,10 @@ efficientai:
         - "https://evals.yourcompany.com"
     operational:
       public: false
-      # Include VPC / node CIDRs so kubelet can reach /health/ready (readiness probe).
       # trusted_ips:
-      #   - "10.0.0.0/8"
-      #   - "172.16.0.0/12"
+      #   - "10.0.0.0/8"          # mirrors app default — nodes, many cloud VPCs, internal LB health checks
+      #   - "172.16.0.0/12"       # mirrors app default — alternate private ranges
+      #   - "YOUR_EXTRA_CIDR/XX"    # only if network team confirms (e.g. non-RFC1918 pod/node CIDR)
     security:
       csp_enabled: true
       csp_report_only: false

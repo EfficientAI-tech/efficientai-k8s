@@ -103,14 +103,23 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 Platform [PR #124](https://github.com/EfficientAI-tech/efficientAI/pull/124) adds cookie sessions, CSRF, TrustedHost/HSTS, and recording URL SSRF checks. Configure via `efficientai.config.*` (rendered into `config.yml`):
 
 - **`app.frontend_base_url`** — public HTTPS URL (invite links + Host allowlist); must match ingress hostname.
-- **`auth.local_password.cookie_session`** — `enabled: true`; set **`secure: true`** in production behind TLS.
+- **`auth.local_password.cookie_session`** — `enabled: true`; chart default **`secure: false`** for dev/HTTP; set **`secure: true`** in production behind TLS.
 - **`security.hsts_enabled`** — `true` on HTTPS deployments.
 - **`app.debug: false`** and strong **`efficientai.secretKey`** (required when not debugging).
-- **Probes:** liveness `/health`, readiness `/health/ready` (503 until migrations complete).
+- **Probes:** liveness `/health`, readiness `/health/ready` on PR #124+ images (503 until migrations complete).
 
-Production overlay: [`examples/self-host-production-security.yaml`](examples/self-host-production-security.yaml). Full checklist and migration steps: [`docs/self-host-security.md`](docs/self-host-security.md).
+Production overlay: [`examples/self-host-production-security.yaml`](examples/self-host-production-security.yaml). Full checklist, **`operational.trusted_ips`**, and migration steps: [`docs/self-host-security.md`](docs/self-host-security.md).
 
-After upgrading to an image that includes PR #124, run **`eai migrate`** once per release.
+### Chart vs application version
+
+| Situation | What to do |
+|-----------|------------|
+| Chart upgraded, API still **before** PR #124 | Layer [`examples/chart-without-pr124-app.yaml`](examples/chart-without-pr124-app.yaml) so readiness hits `/health`. |
+| API **includes** PR #124 | Pin image tag; run **`eai migrate`** once; use default probes. |
+| Pods **NotReady**, readiness 404 | Caller IP not in `trusted_ips` — omit the key to use app defaults (`10.0.0.0/8`, `172.16.0.0/12`, … for nodes/LBs/probes), or override the full list with those plus org-specific CIDRs. See [trusted IPs](docs/self-host-security.md#operational-trusted-ips). |
+| Production HTTPS | Merge production overlay; **`cookie_session.secure: true`**. |
+
+After upgrading to an image that includes PR #124, run **`eai migrate`** once per release (web Deployment name is `{helm-fullname}-web`; see security doc).
 
 ### Sizing
 

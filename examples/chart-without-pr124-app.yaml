@@ -1,0 +1,18 @@
+# Use when upgrading the Helm chart before the API image includes PR #124.
+# Chart defaults probe readiness at /health/ready; older images only expose /health.
+#
+#   helm upgrade --install efficientai charts/efficientai -f examples/chart-without-pr124-app.yaml ...
+#
+# Remove this overlay once efficientai.image.api.tag (and worker.tag) point at a PR #124+ release.
+
+efficientai:
+  web:
+    probes:
+      readiness:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3

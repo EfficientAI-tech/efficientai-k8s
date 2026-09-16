@@ -17,10 +17,8 @@ spec:
   selector:
     matchLabels:
       {{- include "efficientai.componentSelectorLabels" (dict "root" . "component" $component) | nindent 6 }}
-  {{- with $b.deployment.strategy }}
   strategy:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- toYaml $b.deployment.strategy | nindent 4 }}
   template:
     metadata:
       labels:

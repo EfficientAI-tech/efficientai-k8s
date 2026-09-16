@@ -134,15 +134,19 @@ Full field descriptions: [`config.yml.example` → `workers:`](https://github.co
 
 ## Operational endpoints
 
-Upstream also documents `operational.public` and `operational.trusted_ips` for locking down `/metrics` while keeping `/health` open for probes. Set under `efficientai.config.operational` — it passes through to the ConfigMap like other non-secret fields:
+`operational.public` and `operational.trusted_ips` lock down `/metrics` and gate **`/health/ready`** (readiness) on PR #124+ images. Set under `efficientai.config.operational` — values pass through to the ConfigMap.
+
+**Omit `trusted_ips` in Helm** to keep application defaults (`10.0.0.0/8`, `172.16.0.0/12`, loopback, etc.) — those wide private CIDRs are intentional upstream (kubelet, node InternalIPs, in-VPC load balancers). Override only for outlier networks or when replacing the full list; then re-include needed RFC1918 ranges plus org-specific CIDRs. Details: [`docs/self-host-security.md` → Operational trusted IPs](self-host-security.md#operational-trusted-ips).
 
 ```yaml
 efficientai:
   config:
     operational:
       public: false
-      trusted_ips:
-        - "10.0.0.0/8"   # VPC CIDR where Prometheus scrapes
+      # trusted_ips:  # only when defaults are insufficient
+      #   - "10.0.0.0/8"
+      #   - "172.16.0.0/12"
+      #   - "YOUR_EXTRA_CIDR/XX"
 ```
 
 ## Related files

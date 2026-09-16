@@ -1,5 +1,9 @@
 {{- if and .Values.efficientai.workerUsage.enabled .Values.efficientai.workerUsage.autoscaling.enabled -}}
 {{- $component := "worker-usage" -}}
+{{- $wu := .Values.efficientai.workerUsage -}}
+{{- if and $wu.autoscaling.targetCPUUtilizationPercentage (not (dig "resources" "requests" "cpu" "" $wu)) -}}
+{{- fail "efficientai.workerUsage.autoscaling.targetCPUUtilizationPercentage requires efficientai.workerUsage.resources.requests.cpu (CPU utilization HPA needs a pod CPU request)" -}}
+{{- end -}}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

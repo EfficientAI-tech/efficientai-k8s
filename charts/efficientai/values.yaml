@@ -100,6 +100,11 @@ efficientai:
       public: false
       health_rate_limit_per_minute: 60
       health_readiness_cache_seconds: 10
+      # trusted_ips: optional list of CIDRs allowed to call /health/ready and /metrics.
+      # Omit this key to use application defaults (PR #124+): broad private ranges such as
+      # 10.0.0.0/8 and 172.16.0.0/12 on purpose — kubelet/node probes, in-VPC LBs, RFC1918 dev.
+      # Set trusted_ips only when your nets fall outside those defaults, or when overriding
+      # the full list (then re-include needed RFC1918 + org-specific CIDRs). See docs/self-host-security.md.
     security:
       csp_enabled: true
       csp_report_only: false
@@ -130,6 +135,8 @@ efficientai:
         allow_signup: true
         cookie_session:
           enabled: true
+          # false = HTTP dev clusters (kind/minikube) without TLS. Production behind HTTPS:
+          # set secure: true (see examples/self-host-production-security.yaml).
           secure: false
           samesite: lax
     diarization:
@@ -210,6 +217,8 @@ efficientai:
     extraVolumes: []
     extraVolumeMounts: []
     probes:
+      # Requires an API image that includes PR #124 (/health/ready). Older images: override
+      # readiness path to /health — see examples/chart-without-pr124-app.yaml and README.
       liveness:
         httpGet:
           path: /health
@@ -331,7 +340,9 @@ efficientai:
     command: []
     resources: {}
     deployment:
-      strategy: {}
+      # Recreate avoids two Beat schedulers during rollouts (RollingUpdate default maxSurge).
+      strategy:
+        type: Recreate
     pod:
       annotations: {}
       labels: {}
@@ -357,7 +368,11 @@ efficientai:
     pool: threads
     concurrency: 4
     command: []
-    resources: {}
+    # Default requests so CPU-based HPA can compute utilization when autoscaling is enabled.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
     autoscaling:
       enabled: false
       minReplicas: 1

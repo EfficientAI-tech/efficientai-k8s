@@ -147,6 +147,7 @@ helm template efficientai charts/efficientai -n efficientai \
   -f examples/self-host-production-security.yaml \
   -f my-secrets.yaml \
   --set efficientai.migrateJob.enabled=true \
+  --set efficientai.migrateJob.includeInRelease=true \
   --set efficientai.migrateJob.suffix="$(date +%s)" \
   -s templates/migrate/job.yaml | kubectl apply -f -
 
@@ -159,6 +160,8 @@ kubectl -n efficientai rollout status deploy/efficientai-web --timeout=10m
 `efficientai.migrateJob.suffix` must be **unique per run** (Job names are immutable). Set **`includeInRelease: true` only on the one-shot `helm template … -s templates/migrate/job.yaml` command** — keep both flags `false` in committed values used with `helm upgrade`, so no migrate Job is ever part of the regular release.
 
 Do **not** hand-write a Job that only `envFrom`s `efficientai-app-secrets`; that secret holds app keys, not chart-generated `DATABASE_URL` / Postgres host wiring.
+
+**External Postgres with TLS:** the Job reuses **`efficientai.web.extraVolumes`**, **`extraVolumeMounts`**, and **`additionalEnv`** (same as web) so certificate paths and `DATABASE_URL` overrides match. See [`examples/external-postgres.yaml`](../examples/external-postgres.yaml). Optional **`efficientai.migrateJob.extraVolumes`** only if migrate needs mounts web does not.
 
 ### One-off exec (dev / fallback)
 

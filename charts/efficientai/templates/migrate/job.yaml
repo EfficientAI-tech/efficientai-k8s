@@ -36,6 +36,9 @@ spec:
             {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
             {{- include "efficientai.redis.envBlock" . | nindent 12 }}
             {{- include "efficientai.appEnvBlock" . | nindent 12 }}
+            {{- with .Values.efficientai.web.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
             {{- with .Values.efficientai.migrateJob.additionalEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -44,8 +47,20 @@ spec:
               mountPath: /app/config.yml
               subPath: config.yml
               readOnly: true
+            {{- with .Values.efficientai.web.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.efficientai.migrateJob.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ include "efficientai.fullname" . }}-config
+        {{- with .Values.efficientai.web.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.efficientai.migrateJob.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 {{- end }}

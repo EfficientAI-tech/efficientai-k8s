@@ -166,6 +166,8 @@ efficientai:
     backoffLimit: 2
     ttlSecondsAfterFinished: 86400
     additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
 
   # ===========================================================================
   # web (api) component

@@ -145,7 +145,7 @@ Every component exposes the same surface:
 
 #### Database migrations (`efficientai.migrateJob`)
 
-Optional one-off Job (`templates/migrate/job.yaml`) with the same Postgres/Redis/app env as web. Render with `--set efficientai.migrateJob.enabled=true --set efficientai.migrateJob.includeInRelease=true --set efficientai.migrateJob.suffix=UNIQUE -s templates/migrate/job.yaml` (not via normal `helm upgrade`). See [`docs/self-host-security.md`](../../docs/self-host-security.md).
+Optional one-off Job (`templates/migrate/job.yaml`) with the same Postgres/Redis/app env as web, plus **`efficientai.web.extraVolumes` / `extraVolumeMounts` / `additionalEnv`** for external DB TLS. Render with `--set efficientai.migrateJob.enabled=true --set efficientai.migrateJob.includeInRelease=true --set efficientai.migrateJob.suffix=UNIQUE -s templates/migrate/job.yaml` (not via normal `helm upgrade`). See [`docs/self-host-security.md`](../../docs/self-host-security.md).
 
 #### Worker-only
 

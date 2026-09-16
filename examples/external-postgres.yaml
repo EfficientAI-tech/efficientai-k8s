@@ -57,3 +57,4 @@ postgresql:
 #           secretKeyRef:
 #             name: efficientai-postgres-certs
 #             key: database-url
+#   # migrate Job reuses efficientai.web.extraVolumes / extraVolumeMounts / additionalEnv

@@ -39,6 +39,30 @@ tests:
           path: spec.template.spec.containers[0].env[5].name
           value: DATABASE_URL
 
+  - it: reuses web extraVolumeMounts for external Postgres TLS
+    template: templates/migrate/job.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.auth.password: "pg"
+      efficientai.migrateJob.enabled: true
+      efficientai.migrateJob.includeInRelease: true
+      efficientai.migrateJob.suffix: testrun
+      efficientai.web.extraVolumeMounts:
+        - name: db-certs
+          mountPath: /secrets/db-keystore
+          readOnly: true
+      efficientai.web.extraVolumes:
+        - name: db-certs
+          secret:
+            secretName: efficientai-postgres-certs
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: db-certs
+            mountPath: /secrets/db-keystore
+            readOnly: true
+
   - it: omits migrate job when enabled but includeInRelease is false
     template: templates/migrate/job.yaml
     set:

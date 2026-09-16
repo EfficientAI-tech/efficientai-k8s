@@ -143,6 +143,10 @@ Every component exposes the same surface:
 | `efficientai.web.ingress.tls` | `[]` |
 | `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/health` and `/health/ready` on port `8000` (override readiness to `/health` for pre–PR #124 images — [`examples/chart-without-pr124-app.yaml`](../../examples/chart-without-pr124-app.yaml)) |
 
+#### Database migrations (`efficientai.migrateJob`)
+
+Optional one-off Job (`templates/migrate/job.yaml`) with the same Postgres/Redis/app env as web. Render with `--set efficientai.migrateJob.enabled=true --set efficientai.migrateJob.includeInRelease=true --set efficientai.migrateJob.suffix=UNIQUE -s templates/migrate/job.yaml` (not via normal `helm upgrade`). See [`docs/self-host-security.md`](../../docs/self-host-security.md).
+
 #### Worker-only
 
 | Key | Default |

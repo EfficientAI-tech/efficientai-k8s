@@ -119,7 +119,7 @@ Production overlay: [`examples/self-host-production-security.yaml`](examples/sel
 | Pods **NotReady**, readiness 404 | Caller IP not in `trusted_ips` — omit the key to use app defaults (`10.0.0.0/8`, `172.16.0.0/12`, … for nodes/LBs/probes), or override the full list with those plus org-specific CIDRs. See [trusted IPs](docs/self-host-security.md#operational-trusted-ips). |
 | Production HTTPS | Merge production overlay; **`cookie_session.secure: true`**. |
 
-After upgrading to an image that includes PR #124, run **`eai migrate` once** per release — see [`docs/self-host-security.md`](docs/self-host-security.md) (Job recommended; avoid `kubectl exec deploy/...` while old web pods are still Ready).
+After upgrading to an image that includes PR #124, run **`eai migrate` once** per release — use the [chart migrate Job](docs/self-host-security.md#chart-migrate-job-recommended) (`templates/migrate/job.yaml`) or pod exec with `pod-template-hash` + image check (see [`docs/self-host-security.md`](docs/self-host-security.md)).
 
 ### Sizing
 

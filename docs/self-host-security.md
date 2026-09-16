@@ -34,24 +34,48 @@ Use [`examples/self-host-production-security.yaml`](../examples/self-host-produc
 
 **Helm `--wait` and migrations:** Readiness uses `/health/ready`, which returns **503 until Alembic migrations finish**. If an upgrade needs a new migration, `helm upgrade --wait` can **time out** before migrations run. Use one of these patterns:
 
-1. **Recommended — one-off Job with the new API image** (same tag as `efficientai.image.api.tag` in your upgrade). Runs migration code once, independent of which web pods are Ready. See [Job pattern](#database-migrations) below; apply the Job, wait for `Complete`, then `kubectl rollout status deploy/efficientai-web`.
-2. **Upgrade without waiting**, migrate on a **new-revision web pod**, then wait for rollout:
+1. **Recommended — chart migrate Job** (same **`DATABASE_URL` / Postgres / Redis / app env** as web — not just `efficientai-app-secrets`). After `helm upgrade --wait=false`, render and apply:
+   ```bash
+   helm template efficientai charts/efficientai -n efficientai \
+     -f examples/self-host-production-security.yaml \
+     -f my-secrets.yaml \
+     --set efficientai.migrateJob.enabled=true \
+     --set efficientai.migrateJob.includeInRelease=true \
+     --set efficientai.migrateJob.suffix="$(date +%s)" \
+     -s templates/migrate/job.yaml | kubectl apply -f -
+
+   kubectl -n efficientai wait --for=condition=complete \
+     job/$(kubectl get jobs -n efficientai -l app.kubernetes.io/component=migrate \
+       --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}') \
+     --timeout=15m
+   kubectl -n efficientai rollout status deploy/efficientai-web --timeout=10m
+   ```
+   See [Job pattern](#database-migrations) for details.
+2. **Upgrade without waiting**, migrate via **exec on a pod that matches the Deployment’s current template** (not `deploy/...`, not “newest pod by time”):
    ```bash
    helm upgrade --install efficientai charts/efficientai -n efficientai \
      -f examples/self-host-production-security.yaml \
      -f my-secrets.yaml --wait=false
 
-   # Do not use kubectl exec deploy/... — Kubernetes may pick an old Ready pod during rollouts.
-   WEB_POD=$(kubectl get pods -n efficientai \
-     -l app.kubernetes.io/name=efficientai,app.kubernetes.io/instance=efficientai,app.kubernetes.io/component=web \
-     --sort-by=.metadata.creationTimestamp \
-     -o jsonpath='{.items[-1].metadata.name}')
-   kubectl exec -n efficientai "$WEB_POD" -- eai migrate
+   NAMESPACE=efficientai
+   RELEASE=efficientai
+   DEPLOY=efficientai-web
+   TEMPLATE_HASH=$(kubectl get deploy "$DEPLOY" -n "$NAMESPACE" \
+     -o jsonpath='{.spec.template.metadata.labels.pod-template-hash}')
+   DESIRED_IMAGE=$(kubectl get deploy "$DEPLOY" -n "$NAMESPACE" \
+     -o jsonpath='{.spec.template.spec.containers[0].image}')
 
+   WEB_POD=$(kubectl get pods -n "$NAMESPACE" \
+     -l "app.kubernetes.io/name=efficientai,app.kubernetes.io/instance=${RELEASE},app.kubernetes.io/component=web,pod-template-hash=${TEMPLATE_HASH}" \
+     -o jsonpath='{.items[0].metadata.name}')
+   ACTUAL_IMAGE=$(kubectl get pod -n "$NAMESPACE" "$WEB_POD" -o jsonpath='{.spec.containers[0].image}')
+   test "$ACTUAL_IMAGE" = "$DESIRED_IMAGE"
+
+   kubectl exec -n "$NAMESPACE" "$WEB_POD" -- eai migrate
    kubectl -n efficientai rollout status deploy/efficientai-web --timeout=10m
    ```
-   Adjust `app.kubernetes.io/instance` if your Helm release name is not `efficientai`. Confirm the pod image matches the new tag: `kubectl get pod -n efficientai "$WEB_POD" -o jsonpath='{.spec.containers[0].image}{"\n"}'`.
-3. **Migrate before rolling web** — run the Job (or a one-off pod) with the **new** image against the shared DB, then `helm upgrade ... --wait` when no pending migrations remain.
+   If no pod matches `pod-template-hash` yet, wait until the rollout creates one (`kubectl get pods -w …`). Adjust `DEPLOY` / `app.kubernetes.io/instance` when the release name is not `efficientai`.
+3. **Migrate before rolling web** — apply the chart migrate Job (same values as the upcoming upgrade) against the shared DB, then `helm upgrade ... --wait` when no pending migrations remain.
 
 Greenfield installs with pending migrations: use (1) or (2) — avoid `--wait` until after `eai migrate` succeeds once.
 
@@ -112,61 +136,51 @@ Upgrades that include session-epoch / cookie auth need Alembic migrations (e.g. 
 
 Run migrations **before** expecting web pods to pass `/health/ready`, or use `--wait=false` then migrate (see [Values overlay](#values-overlay)). Migrations are **global to the database** — run **`eai migrate` once**, not on every replica.
 
-### Job pattern (recommended for upgrades)
+### Chart migrate Job (recommended)
 
-Pin **`image:`** to the same API tag you set in Helm (`efficientai.image.api.tag`). Wire env/config like the web Deployment (chart Secret + ConfigMap).
+The chart can render a Job with the **same env blocks as web** (`POSTGRES_*`, `DATABASE_URL`, Redis, `SECRET_KEY`, etc.) — including bundled Bitnami Postgres and production `existingSecret` overlays.
 
-```yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: efficientai-migrate
-  namespace: efficientai
-spec:
-  backoffLimit: 2
-  template:
-    spec:
-      restartPolicy: Never
-      serviceAccountName: efficientai
-      containers:
-        - name: migrate
-          image: ghcr.io/efficientai-tech/efficientai-api:TAG
-          command: ["eai", "migrate", "--config", "/app/config.yml"]
-          envFrom:
-            - secretRef:
-                name: efficientai-app-secrets
-          volumeMounts:
-            - name: config
-              mountPath: /app/config.yml
-              subPath: config.yml
-              readOnly: true
-      volumes:
-        - name: config
-          configMap:
-            name: efficientai-config
-```
+After upgrading the release (same `-f` values and image tag as web):
 
 ```bash
-kubectl apply -f migrate-job.yaml
-kubectl -n efficientai wait --for=condition=complete job/efficientai-migrate --timeout=15m
+helm template efficientai charts/efficientai -n efficientai \
+  -f examples/self-host-production-security.yaml \
+  -f my-secrets.yaml \
+  --set efficientai.migrateJob.enabled=true \
+  --set efficientai.migrateJob.suffix="$(date +%s)" \
+  -s templates/migrate/job.yaml | kubectl apply -f -
+
+JOB=$(kubectl get jobs -n efficientai -l app.kubernetes.io/component=migrate \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+kubectl -n efficientai wait --for=condition=complete "job/${JOB}" --timeout=15m
 kubectl -n efficientai rollout status deploy/efficientai-web --timeout=10m
 ```
 
-Adjust image tag, secret names, and ConfigMap name to match your release. The Job must see the same **`DATABASE_URL` / Redis env** as web pods — copy the `env` / `envFrom` block from `kubectl get deploy efficientai-web -o yaml` if the snippet above is not enough.
+`efficientai.migrateJob.suffix` must be **unique per run** (Job names are immutable). Set **`includeInRelease: true` only on the one-shot `helm template … -s templates/migrate/job.yaml` command** — keep both flags `false` in committed values used with `helm upgrade`, so no migrate Job is ever part of the regular release.
 
-### One-off exec (dev / single-replica only)
+Do **not** hand-write a Job that only `envFrom`s `efficientai-app-secrets`; that secret holds app keys, not chart-generated `DATABASE_URL` / Postgres host wiring.
 
-**Avoid `kubectl exec deploy/...` during rollouts** — the Deployment may route exec to an **old Ready pod** with outdated migration code. Target a **specific pod** on the **new revision** (newest by creation time), or use the Job above.
+### One-off exec (dev / fallback)
+
+**Avoid `kubectl exec deploy/...`** and **avoid picking the newest pod by creation time** — scale-ups or rollbacks can make that an old revision. Select a pod whose **`pod-template-hash`** matches the Deployment’s **current** template, and confirm **`spec.containers[0].image`** equals the Deployment’s desired image before running migrate.
 
 ```bash
 NAMESPACE=efficientai
 RELEASE=efficientai
+DEPLOY=efficientai-web
+TEMPLATE_HASH=$(kubectl get deploy "$DEPLOY" -n "$NAMESPACE" \
+  -o jsonpath='{.spec.template.metadata.labels.pod-template-hash}')
+DESIRED_IMAGE=$(kubectl get deploy "$DEPLOY" -n "$NAMESPACE" \
+  -o jsonpath='{.spec.template.spec.containers[0].image}')
 WEB_POD=$(kubectl get pods -n "$NAMESPACE" \
-  -l "app.kubernetes.io/name=efficientai,app.kubernetes.io/instance=${RELEASE},app.kubernetes.io/component=web" \
-  --sort-by=.metadata.creationTimestamp \
-  -o jsonpath='{.items[-1].metadata.name}')
+  -l "app.kubernetes.io/name=efficientai,app.kubernetes.io/instance=${RELEASE},app.kubernetes.io/component=web,pod-template-hash=${TEMPLATE_HASH}" \
+  -o jsonpath='{.items[0].metadata.name}')
+ACTUAL_IMAGE=$(kubectl get pod -n "$NAMESPACE" "$WEB_POD" -o jsonpath='{.spec.containers[0].image}')
+test "$ACTUAL_IMAGE" = "$DESIRED_IMAGE"
 kubectl exec -n "$NAMESPACE" "$WEB_POD" -- eai migrate
 ```
+
+Prefer the [chart migrate Job](#chart-migrate-job-recommended) for production upgrades.
 
 ## Verify after deploy
 

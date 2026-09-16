@@ -9,11 +9,12 @@
 #     -f my-prod-values.yaml --wait=false
 #
 # PR #124+ readiness returns 503 until DB migrations finish — do not use --wait until
-# after migrate (see docs/self-host-security.md). Prefer a one-off Job with the NEW API
-# image tag; or exec into the newest web pod (not deploy/... — old Ready pods during rollouts):
-#   WEB_POD=$(kubectl get pods -n efficientai -l app.kubernetes.io/name=efficientai,app.kubernetes.io/instance=efficientai,app.kubernetes.io/component=web --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
-#   kubectl exec -n efficientai "$WEB_POD" -- eai migrate
-#   kubectl -n efficientai rollout status deploy/efficientai-web --timeout=10m
+# after migrate (see docs/self-host-security.md). Prefer chart migrate Job (full DB env):
+#   helm template efficientai charts/efficientai -n efficientai -f my-prod-values.yaml \
+#     --set efficientai.migrateJob.enabled=true --set efficientai.migrateJob.includeInRelease=true \
+#     --set efficientai.migrateJob.suffix="$(date +%s)" \
+#     -s templates/migrate/job.yaml | kubectl apply -f -
+# Or exec a pod matching deploy pod-template-hash + image check — see security doc.
 #
 # Upgrades with no pending migrations can use --wait on helm upgrade directly.
 #

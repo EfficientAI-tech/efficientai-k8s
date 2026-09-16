@@ -154,6 +154,19 @@ efficientai:
         multi_tenant: false
         platform_tenant: "platform"
 
+  # One-off Alembic Job — NOT part of a normal helm upgrade (includeInRelease defaults false).
+  # When an upgrade needs migrations, render explicitly:
+  #   helm template ... --set efficientai.migrateJob.enabled=true \
+  #     --set efficientai.migrateJob.includeInRelease=true --set efficientai.migrateJob.suffix=UNIQUE \
+  #     -s templates/migrate/job.yaml | kubectl apply -f -
+  migrateJob:
+    enabled: false
+    includeInRelease: false
+    suffix: ""
+    backoffLimit: 2
+    ttlSecondsAfterFinished: 86400
+    additionalEnv: []
+
   # ===========================================================================
   # web (api) component
   # ===========================================================================

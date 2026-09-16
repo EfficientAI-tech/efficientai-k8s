@@ -66,6 +66,7 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 | App setting | Source (`values.yaml`) | How it reaches the pod |
 |---|---|---|
 | `app.name`, `app.debug` | `efficientai.config.app.*` | ConfigMap (verbatim) |
+| `app.frontend_base_url` | `efficientai.config.app.frontend_base_url` | ConfigMap — required for production; drives invite links and Host allowlist |
 | `SECRET_KEY` | `efficientai.secretKey` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `ENCRYPTION_KEY` | `efficientai.encryptionKey` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `server.host` / `server.port` | `efficientai.config.server.*` | ConfigMap (verbatim) |
@@ -83,9 +84,12 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 | `cors.origins` | `efficientai.config.cors.origins` | ConfigMap (verbatim) |
 | `api.prefix` / `key_header` / `rate_limit_per_minute` | `efficientai.config.api.*` | ConfigMap (verbatim) |
 | `auth.providers` / `auth.local_password.*` | `efficientai.config.auth.*` | ConfigMap (verbatim) |
+| `auth.local_password.cookie_session.*` | `efficientai.config.auth.local_password.cookie_session` | ConfigMap — set `secure: true` behind HTTPS in production |
+| `security.*` (CSP, HSTS, `trusted_hosts`, `public_base_url`) | `efficientai.config.security.*` | ConfigMap (verbatim) |
+| `operational.public` / `operational.trusted_ips` / `operational.health_*` | `efficientai.config.operational.*` | ConfigMap — `/metrics` IP gate; `/health/ready` for kube readiness |
+| `telephony.recording_url_allowed_host_suffixes` | `efficientai.config.telephony.*` | ConfigMap — optional custom SSRF allowlist suffixes |
 | `judge_alignment.enabled` / `csv_max_rows` | `efficientai.config.judge_alignment.*` | ConfigMap (verbatim) |
 | `workers.*` (fair-share import/eval limits) | `efficientai.config.workers.*` | ConfigMap (verbatim) |
-| `operational.public` / `operational.trusted_ips` | `efficientai.config.operational.*` | ConfigMap (verbatim — lock down `/metrics`) |
 | `observability.loki.*` | `efficientai.config.observability.loki.*` | ConfigMap (verbatim — point `url` at an external Loki) |
 | `EFFICIENTAI_LICENSE` | `efficientai.license` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `DB_CATALOG_URL` / `DB_SHARD_ENTRIES` / `DB_SHARDING_ENABLED` | `additionalEnv` on web, worker, workerImports (from a Secret) | Env vars — required for data-plane sharding; see [database sharding guide](../../docs/database-sharding-and-workers.md) |
@@ -137,7 +141,7 @@ Every component exposes the same surface:
 | `efficientai.web.ingress.annotations` | `{}` |
 | `efficientai.web.ingress.hosts` | one default host |
 | `efficientai.web.ingress.tls` | `[]` |
-| `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/api/v1/health` on port `8000` |
+| `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/health` and `/health/ready` on port `8000` |
 
 #### Worker-only
 

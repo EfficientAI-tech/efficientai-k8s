@@ -325,7 +325,7 @@ Tune `efficientai.config.workers.eval_global_inflight_limit` to match worker-imp
 
 ```bash
 # App health
-curl -sf "https://${APP_DOMAIN}/api/v1/health"
+curl -sf "https://${APP_DOMAIN}/health"
 
 # Metrics endpoint
 kubectl -n efficientai port-forward svc/efficientai-web 8000:8000 &

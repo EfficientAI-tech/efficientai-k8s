@@ -1,0 +1,87 @@
+# Self-hosted production overlay: HTTPS ingress + PR #124 security settings
+# (cookie sessions, TrustedHost/HSTS, frontend_base_url).
+#
+# Replace placeholders before install. Layer secrets via secretKeyRef (see below).
+#
+#   cp examples/self-host-production-security.yaml my-prod-values.yaml
+#   # edit hostnames, ingress class/annotations for your cloud
+#   helm upgrade --install efficientai charts/efficientai -n efficientai \
+#     -f my-prod-values.yaml --wait
+#
+# After upgrading from images without cookie sessions, run DB migrations once:
+#   kubectl -n efficientai exec deploy/efficientai-efficientai-web -- eai migrate
+# See docs/self-host-security.md for a Job-based migrate pattern.
+
+efficientai:
+  secretKey:
+    secretKeyRef:
+      name: efficientai-app-secrets
+      key: SECRET_KEY
+  encryptionKey:
+    secretKeyRef:
+      name: efficientai-app-secrets
+      key: ENCRYPTION_KEY
+
+  config:
+    app:
+      debug: false
+      frontend_base_url: "https://evals.yourcompany.com"
+    cors:
+      origins:
+        - "https://evals.yourcompany.com"
+    operational:
+      public: false
+      # Include VPC / node CIDRs so kubelet can reach /health/ready (readiness probe).
+      # trusted_ips:
+      #   - "10.0.0.0/8"
+      #   - "172.16.0.0/12"
+    security:
+      csp_enabled: true
+      csp_report_only: false
+      hsts_enabled: true
+      hsts_max_age: 31536000
+      hsts_include_subdomains: true
+      # Optional when API hostname differs from SPA:
+      # public_base_url: "https://api.yourcompany.com"
+      # trusted_hosts:
+      #   - "legacy.yourcompany.com"
+    auth:
+      local_password:
+        cookie_session:
+          enabled: true
+          secure: true
+          samesite: lax
+          # domain: ".yourcompany.com"
+    # Optional custom recording CDN suffixes (built-in SSRF list covers major providers):
+    # telephony:
+    #   recording_url_allowed_host_suffixes:
+    #     - "recordings.yourcompany.com"
+    # SaaS only — leave commented for self-host (HTTP abuse limits off by default):
+    # rate_limits:
+    #   enforce: true
+
+  web:
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - host: evals.yourcompany.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: efficientai-tls
+          hosts:
+            - evals.yourcompany.com
+
+postgresql:
+  auth:
+    existingSecret: efficientai-postgres
+    secretKeys:
+      userPasswordKey: password
+
+redis:
+  auth:
+    enabled: true
+    existingSecret: efficientai-redis
+    existingSecretPasswordKey: password

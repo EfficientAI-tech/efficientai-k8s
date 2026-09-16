@@ -73,3 +73,6 @@ Beat runs Celery Beat (scheduler) plus a co-located platform queue worker. Keep 
 
 Worker-usage drains: {{ .Values.efficientai.workerUsage.queues }} (usage pricing / Redis flush).
 {{- end }}
+
+Security (cookie sessions / PR #124): set efficientai.config.app.frontend_base_url to your public URL and auth.local_password.cookie_session.secure=true behind HTTPS. After upgrading from older images, run: kubectl exec deploy/{{ include "efficientai.componentFullname" (dict "root" . "component" "web") }} -- eai migrate
+See docs/self-host-security.md in the chart repo.

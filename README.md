@@ -75,7 +75,7 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 
 | App setting | Where you set it | How it reaches the pod |
 |---|---|---|
-| Plain config (`app.debug`, `cors.origins`, `auth.providers`, `judge_alignment.*`, `storage.*`, `diarization.num_speakers`, `workers.*`, `operational.*`, `observability.loki.*`, ...) | `efficientai.config.*` (same nested shape as [`config.yml.example`](https://github.com/EfficientAI-tech/efficientAI/blob/main/config.yml.example)) | Verbatim in the ConfigMap |
+| Plain config (`app.debug`, `app.frontend_base_url`, `cors.origins`, `auth.providers`, `auth.local_password.cookie_session`, `security.*`, `operational.*`, `judge_alignment.*`, `storage.*`, `diarization.num_speakers`, `workers.*`, `telephony.*`, `observability.loki.*`, ...) | `efficientai.config.*` (same nested shape as [`config.yml.example`](https://github.com/EfficientAI-tech/efficientAI/blob/main/config.yml.example)) | Verbatim in the ConfigMap |
 | `DATABASE_URL` | `postgresql.*` (in-cluster) or `postgresql.deploy: false` + `host` (external) | Env var: built from `POSTGRES_USER`/`PASSWORD`/`HOST`/`PORT`/`DB`. **Not** written to `config.yml`. |
 | `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` | `redis.*` (in-cluster) or `redis.deploy: false` + `host` / `cluster.nodes` | Env vars: built from `REDIS_HOST`/`PORT`/auth. **Not** written to `config.yml`. |
 | `storage.blob_provider` | `s3.enabled` / `gcs.enabled` | Rendered into the ConfigMap (`s3` by default, `gcs` when GCS is enabled) |
@@ -97,6 +97,20 @@ The chart produces **one `config.yml`** (rendered into a ConfigMap and mounted a
 **Database sharding and worker limits:** single-DB mode uses `DATABASE_URL` from the chart (default). For catalog + data-shard deployments and Redis fair-share tuning (`workers.eval_global_inflight_limit`, etc.), see [`docs/database-sharding-and-workers.md`](docs/database-sharding-and-workers.md).
 
 **Celery queue split:** when `workerImports.enabled=true`, the default worker drains `celery,audio-metrics`, worker-imports drains `imports,diarization,eval-control,evaluations`, **beat** runs Celery Beat plus the `platform` queue (single replica), and **worker-usage** drains the `usage` queue. Mirrors [`docker-compose.yml`](https://github.com/EfficientAI-tech/efficientAI/blob/main/docker-compose.yml).
+
+### Security (self-host / PR #124)
+
+Platform [PR #124](https://github.com/EfficientAI-tech/efficientAI/pull/124) adds cookie sessions, CSRF, TrustedHost/HSTS, and recording URL SSRF checks. Configure via `efficientai.config.*` (rendered into `config.yml`):
+
+- **`app.frontend_base_url`** — public HTTPS URL (invite links + Host allowlist); must match ingress hostname.
+- **`auth.local_password.cookie_session`** — `enabled: true`; set **`secure: true`** in production behind TLS.
+- **`security.hsts_enabled`** — `true` on HTTPS deployments.
+- **`app.debug: false`** and strong **`efficientai.secretKey`** (required when not debugging).
+- **Probes:** liveness `/health`, readiness `/health/ready` (503 until migrations complete).
+
+Production overlay: [`examples/self-host-production-security.yaml`](examples/self-host-production-security.yaml). Full checklist and migration steps: [`docs/self-host-security.md`](docs/self-host-security.md).
+
+After upgrading to an image that includes PR #124, run **`eai migrate`** once per release.
 
 ### Sizing
 
@@ -165,6 +179,7 @@ Every example in `examples/` is a values overlay or manifest. See [`examples/REA
 | `gke/values-gcs.yaml` | GKE + GCS via Workload Identity, observability config, GCE Ingress |
 | `gke/values-gke-high-concurrency.yaml` | GKE overlay: 8–20 worker-imports pods × 32 threads (256–640 Celery threads, KEDA) |
 | `ingress-alb.yaml` | AWS Load Balancer Controller with redirect action and custom per-host backend |
+| `self-host-production-security.yaml` | HTTPS ingress + PR #124 security settings (`frontend_base_url`, cookie sessions, HSTS) |
 | `sso-oidc.yaml` | External OIDC SSO (Okta-style) wired through `efficientai.web.additionalEnv` |
 | `topology-spread.yaml` | Zone- and host-aware spread constraints for `web`, `worker`, and `workerImports` |
 

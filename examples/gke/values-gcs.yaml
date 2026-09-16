@@ -31,11 +31,24 @@ efficientai:
       iam.gke.io/gcp-service-account: efficientai-gcs@YOUR_PROJECT_ID.iam.gserviceaccount.com
 
   config:
+    app:
+      debug: false
+      frontend_base_url: "https://gcp.example.com"
     storage:
       blob_provider: gcs
     cors:
       origins:
         - "https://gcp.example.com"
+    security:
+      csp_enabled: true
+      csp_report_only: false
+      hsts_enabled: true
+    auth:
+      local_password:
+        cookie_session:
+          enabled: true
+          secure: true
+          samesite: lax
     observability:
       enabled: true
       loki:

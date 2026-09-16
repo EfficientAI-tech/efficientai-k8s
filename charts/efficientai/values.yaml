@@ -91,9 +91,18 @@ efficientai:
     app:
       name: "EfficientAI Voice AI Evaluation Platform"
       debug: false
+      # Public URL for invite links and Host allowlist (override in production overlays).
+      frontend_base_url: "http://localhost:8000"
     server:
       host: "0.0.0.0"
       port: 8000
+    operational:
+      public: false
+      health_rate_limit_per_minute: 60
+      health_readiness_cache_seconds: 10
+    security:
+      csp_enabled: true
+      csp_report_only: false
     storage:
       blob_provider: s3
       upload_dir: "/app/uploads"
@@ -116,8 +125,13 @@ efficientai:
         - api_key
         - local_password
       local_password:
-        token_ttl_minutes: 720
+        token_ttl_minutes: 15
+        refresh_token_ttl_days: 7
         allow_signup: true
+        cookie_session:
+          enabled: true
+          secure: false
+          samesite: lax
     diarization:
       num_speakers: 2
     judge_alignment:
@@ -198,7 +212,7 @@ efficientai:
     probes:
       liveness:
         httpGet:
-          path: /api/v1/health
+          path: /health
           port: 8000
         initialDelaySeconds: 30
         periodSeconds: 30
@@ -206,7 +220,7 @@ efficientai:
         failureThreshold: 6
       readiness:
         httpGet:
-          path: /api/v1/health
+          path: /health/ready
           port: 8000
         initialDelaySeconds: 5
         periodSeconds: 10

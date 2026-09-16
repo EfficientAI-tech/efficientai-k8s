@@ -115,11 +115,11 @@ Production overlay: [`examples/self-host-production-security.yaml`](examples/sel
 | Situation | What to do |
 |-----------|------------|
 | Chart upgraded, API still **before** PR #124 | Layer [`examples/chart-without-pr124-app.yaml`](examples/chart-without-pr124-app.yaml) so readiness hits `/health`. |
-| API **includes** PR #124 | Pin image tag; run **`eai migrate`** once; use default probes. |
+| API **includes** PR #124 | Pin image tag; run **`eai migrate` once** (Job with new image or newest web pod — not `exec deploy/...` during rollouts); use default probes. |
 | Pods **NotReady**, readiness 404 | Caller IP not in `trusted_ips` — omit the key to use app defaults (`10.0.0.0/8`, `172.16.0.0/12`, … for nodes/LBs/probes), or override the full list with those plus org-specific CIDRs. See [trusted IPs](docs/self-host-security.md#operational-trusted-ips). |
 | Production HTTPS | Merge production overlay; **`cookie_session.secure: true`**. |
 
-After upgrading to an image that includes PR #124, run **`eai migrate`** once per release (web Deployment name is `{helm-fullname}-web`; see security doc).
+After upgrading to an image that includes PR #124, run **`eai migrate` once** per release — see [`docs/self-host-security.md`](docs/self-host-security.md) (Job recommended; avoid `kubectl exec deploy/...` while old web pods are still Ready).
 
 ### Sizing
 

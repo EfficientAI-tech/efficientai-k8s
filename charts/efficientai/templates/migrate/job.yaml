@@ -1,0 +1,66 @@
+{{- if and .Values.efficientai.migrateJob.enabled .Values.efficientai.migrateJob.includeInRelease -}}
+{{- $suffix := required "efficientai.migrateJob.suffix is required when migrateJob.enabled=true (use a unique value per run, e.g. date +%s)" .Values.efficientai.migrateJob.suffix -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-migrate-%s" (include "efficientai.fullname" .) $suffix | trunc 63 | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "efficientai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+spec:
+  backoffLimit: {{ .Values.efficientai.migrateJob.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.efficientai.migrateJob.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "efficientai.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "efficientai.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: {{ include "efficientai.image" (dict "root" . "type" "api") | quote }}
+          imagePullPolicy: {{ .Values.efficientai.image.pullPolicy }}
+          command:
+            - eai
+            - migrate
+            - --config
+            - /app/config.yml
+          env:
+            {{- include "efficientai.postgresql.envBlock" . | nindent 12 }}
+            {{- include "efficientai.redis.envBlock" . | nindent 12 }}
+            {{- include "efficientai.appEnvBlock" . | nindent 12 }}
+            {{- with .Values.efficientai.web.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.efficientai.migrateJob.additionalEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yml
+              subPath: config.yml
+              readOnly: true
+            {{- with .Values.efficientai.web.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.efficientai.migrateJob.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "efficientai.fullname" . }}-config
+        {{- with .Values.efficientai.web.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.efficientai.migrateJob.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}

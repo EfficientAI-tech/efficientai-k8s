@@ -66,6 +66,7 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 | App setting | Source (`values.yaml`) | How it reaches the pod |
 |---|---|---|
 | `app.name`, `app.debug` | `efficientai.config.app.*` | ConfigMap (verbatim) |
+| `app.frontend_base_url` | `efficientai.config.app.frontend_base_url` | ConfigMap — required for production; drives invite links and Host allowlist |
 | `SECRET_KEY` | `efficientai.secretKey` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `ENCRYPTION_KEY` | `efficientai.encryptionKey` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `server.host` / `server.port` | `efficientai.config.server.*` | ConfigMap (verbatim) |
@@ -83,9 +84,12 @@ Rendered into a `ConfigMap` and mounted at `/app/config.yml` in every app pod. M
 | `cors.origins` | `efficientai.config.cors.origins` | ConfigMap (verbatim) |
 | `api.prefix` / `key_header` / `rate_limit_per_minute` | `efficientai.config.api.*` | ConfigMap (verbatim) |
 | `auth.providers` / `auth.local_password.*` | `efficientai.config.auth.*` | ConfigMap (verbatim) |
+| `auth.local_password.cookie_session.*` | `efficientai.config.auth.local_password.cookie_session` | ConfigMap — default `secure: false` for dev; **`secure: true`** behind HTTPS ([self-host guide](../../docs/self-host-security.md)) |
+| `security.*` (CSP, HSTS, `trusted_hosts`, `public_base_url`) | `efficientai.config.security.*` | ConfigMap (verbatim) |
+| `operational.public` / `operational.trusted_ips` / `operational.health_*` | `efficientai.config.operational.*` | ConfigMap — org-specific CIDRs only; see [trusted IPs](../../docs/self-host-security.md#operational-trusted-ips) |
+| `telephony.recording_url_allowed_host_suffixes` | `efficientai.config.telephony.*` | ConfigMap — optional custom SSRF allowlist suffixes |
 | `judge_alignment.enabled` / `csv_max_rows` | `efficientai.config.judge_alignment.*` | ConfigMap (verbatim) |
 | `workers.*` (fair-share import/eval limits) | `efficientai.config.workers.*` | ConfigMap (verbatim) |
-| `operational.public` / `operational.trusted_ips` | `efficientai.config.operational.*` | ConfigMap (verbatim — lock down `/metrics`) |
 | `observability.loki.*` | `efficientai.config.observability.loki.*` | ConfigMap (verbatim — point `url` at an external Loki) |
 | `EFFICIENTAI_LICENSE` | `efficientai.license` (`value:` or `secretKeyRef:`) | Env var (chart Secret or your Secret) |
 | `DB_CATALOG_URL` / `DB_SHARD_ENTRIES` / `DB_SHARDING_ENABLED` | `additionalEnv` on web, worker, workerImports (from a Secret) | Env vars — required for data-plane sharding; see [database sharding guide](../../docs/database-sharding-and-workers.md) |
@@ -137,7 +141,11 @@ Every component exposes the same surface:
 | `efficientai.web.ingress.annotations` | `{}` |
 | `efficientai.web.ingress.hosts` | one default host |
 | `efficientai.web.ingress.tls` | `[]` |
-| `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/api/v1/health` on port `8000` |
+| `efficientai.web.probes.liveness` / `probes.readiness` | HTTP `/health` and `/health/ready` on port `8000` (override readiness to `/health` for pre–PR #124 images — [`examples/chart-without-pr124-app.yaml`](../../examples/chart-without-pr124-app.yaml)) |
+
+#### Database migrations (`efficientai.migrateJob`)
+
+Optional one-off Job (`templates/migrate/job.yaml`) with the same Postgres/Redis/app env as web, plus **`efficientai.web.extraVolumes` / `extraVolumeMounts` / `additionalEnv`** for external DB TLS. Render with `--set efficientai.migrateJob.enabled=true --set efficientai.migrateJob.includeInRelease=true --set efficientai.migrateJob.suffix=UNIQUE -s templates/migrate/job.yaml` (not via normal `helm upgrade`). See [`docs/self-host-security.md`](../../docs/self-host-security.md).
 
 #### Worker-only
 
@@ -181,6 +189,7 @@ Scale `efficientai.config.workers.eval_global_inflight_limit` to roughly **worke
 | `efficientai.beat.platformQueue` | `platform` |
 | `efficientai.beat.platformConcurrency` | `2` |
 | `efficientai.beat.terminationGracePeriodSeconds` | `60` |
+| `efficientai.beat.deployment.strategy` | `{ type: Recreate }` — avoids two Beat schedulers during rollouts |
 
 If `efficientai.beat.command` is left empty, the chart runs Celery Beat plus a co-located platform queue worker in one container. A shell supervision loop exits (and Kubernetes restarts the pod) if either process dies. `trap shutdown TERM INT` forwards pod termination signals to both Celery processes for warm shutdown during rollouts — stricter than docker-compose `beat`. Do not enable HPA or scale beat beyond one replica.
 
@@ -192,12 +201,13 @@ If `efficientai.beat.command` is left empty, the chart runs Celery Beat plus a c
 | `efficientai.workerUsage.queues` | `usage` |
 | `efficientai.workerUsage.pool` | `threads` |
 | `efficientai.workerUsage.concurrency` | `4` |
+| `efficientai.workerUsage.resources.requests` | `cpu: 100m`, `memory: 256Mi` (required baseline for CPU HPA) |
 | `efficientai.workerUsage.autoscaling.enabled` | `false` |
 | `efficientai.workerUsage.autoscaling.minReplicas` / `maxReplicas` / `targetCPUUtilizationPercentage` | `1` / `5` / `70` |
 
 If `efficientai.workerUsage.command` is left empty, the chart builds `eai worker --config /app/config.yml --loglevel info --queues usage --pool threads --concurrency 4`.
 
-When `efficientai.workerUsage.autoscaling.enabled=true`, the chart omits `spec.replicas` on the Deployment and creates a CPU `HorizontalPodAutoscaler` (same pattern as `efficientai.worker`).
+When `efficientai.workerUsage.autoscaling.enabled=true`, the chart omits `spec.replicas` on the Deployment and creates a CPU `HorizontalPodAutoscaler` (same pattern as `efficientai.worker`). **`resources.requests.cpu` must be set** (chart default `100m`); template render fails if CPU autoscaling is enabled without it.
 
 ### Postgres (`postgresql.*`)
 

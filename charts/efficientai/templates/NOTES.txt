@@ -73,3 +73,5 @@ Beat runs Celery Beat (scheduler) plus a co-located platform queue worker. Keep 
 
 Worker-usage drains: {{ .Values.efficientai.workerUsage.queues }} (usage pricing / Redis flush).
 {{- end }}
+
+Security (cookie sessions / PR #124): set efficientai.config.app.frontend_base_url to your public URL and auth.local_password.cookie_session.secure=true behind HTTPS. DB migrations: render templates/migrate/job.yaml with migrateJob.enabled=true, migrateJob.includeInRelease=true, and a unique suffix (same values as web — includes DATABASE_URL and web TLS mounts). See docs/self-host-security.md.

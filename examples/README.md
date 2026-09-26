@@ -6,6 +6,8 @@ Helm values overlays and Kubernetes manifests for common deployment patterns.
 
 **Database sharding + worker fair-share limits:** see [`docs/database-sharding-and-workers.md`](../docs/database-sharding-and-workers.md).
 
+**Self-host security (PR #124):** see [`docs/self-host-security.md`](../docs/self-host-security.md).
+
 ## Layout
 
 | Path | Use when |
@@ -23,6 +25,8 @@ Helm values overlays and Kubernetes manifests for common deployment patterns.
 | `external-redis.yaml` | External Redis or Redis Cluster |
 | `external-s3.yaml` | AWS S3 blob storage |
 | `ingress-alb.yaml` | AWS Application Load Balancer ingress |
+| `self-host-production-security.yaml` | HTTPS ingress + PR #124 security (`frontend_base_url`, cookie sessions, HSTS) |
+| `chart-without-pr124-app.yaml` | Readiness probe `/health` when API image predates PR #124 |
 | `sso-oidc.yaml` | OIDC / Okta SSO |
 | `topology-spread.yaml` | Zone and host pod spread constraints |
 

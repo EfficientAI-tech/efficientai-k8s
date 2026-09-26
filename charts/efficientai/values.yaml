@@ -91,9 +91,23 @@ efficientai:
     app:
       name: "EfficientAI Voice AI Evaluation Platform"
       debug: false
+      # Public URL for invite links and Host allowlist (override in production overlays).
+      frontend_base_url: "http://localhost:8000"
     server:
       host: "0.0.0.0"
       port: 8000
+    operational:
+      public: false
+      health_rate_limit_per_minute: 60
+      health_readiness_cache_seconds: 10
+      # trusted_ips: optional list of CIDRs allowed to call /health/ready and /metrics.
+      # Omit this key to use application defaults (PR #124+): broad private ranges such as
+      # 10.0.0.0/8 and 172.16.0.0/12 on purpose — kubelet/node probes, in-VPC LBs, RFC1918 dev.
+      # Set trusted_ips only when your nets fall outside those defaults, or when overriding
+      # the full list (then re-include needed RFC1918 + org-specific CIDRs). See docs/self-host-security.md.
+    security:
+      csp_enabled: true
+      csp_report_only: false
     storage:
       blob_provider: s3
       upload_dir: "/app/uploads"
@@ -116,8 +130,15 @@ efficientai:
         - api_key
         - local_password
       local_password:
-        token_ttl_minutes: 720
+        token_ttl_minutes: 15
+        refresh_token_ttl_days: 7
         allow_signup: true
+        cookie_session:
+          enabled: true
+          # false = HTTP dev clusters (kind/minikube) without TLS. Production behind HTTPS:
+          # set secure: true (see examples/self-host-production-security.yaml).
+          secure: false
+          samesite: lax
     diarization:
       num_speakers: 2
     judge_alignment:
@@ -132,6 +153,21 @@ efficientai:
         storage: filesystem
         multi_tenant: false
         platform_tenant: "platform"
+
+  # One-off Alembic Job — NOT part of a normal helm upgrade (includeInRelease defaults false).
+  # When an upgrade needs migrations, render explicitly:
+  #   helm template ... --set efficientai.migrateJob.enabled=true \
+  #     --set efficientai.migrateJob.includeInRelease=true --set efficientai.migrateJob.suffix=UNIQUE \
+  #     -s templates/migrate/job.yaml | kubectl apply -f -
+  migrateJob:
+    enabled: false
+    includeInRelease: false
+    suffix: ""
+    backoffLimit: 2
+    ttlSecondsAfterFinished: 86400
+    additionalEnv: []
+    extraVolumes: []
+    extraVolumeMounts: []
 
   # ===========================================================================
   # web (api) component
@@ -196,9 +232,11 @@ efficientai:
     extraVolumes: []
     extraVolumeMounts: []
     probes:
+      # Requires an API image that includes PR #124 (/health/ready). Older images: override
+      # readiness path to /health — see examples/chart-without-pr124-app.yaml and README.
       liveness:
         httpGet:
-          path: /api/v1/health
+          path: /health
           port: 8000
         initialDelaySeconds: 30
         periodSeconds: 30
@@ -206,7 +244,7 @@ efficientai:
         failureThreshold: 6
       readiness:
         httpGet:
-          path: /api/v1/health
+          path: /health/ready
           port: 8000
         initialDelaySeconds: 5
         periodSeconds: 10
@@ -317,7 +355,9 @@ efficientai:
     command: []
     resources: {}
     deployment:
-      strategy: {}
+      # Recreate avoids two Beat schedulers during rollouts (RollingUpdate default maxSurge).
+      strategy:
+        type: Recreate
     pod:
       annotations: {}
       labels: {}
@@ -343,7 +383,11 @@ efficientai:
     pool: threads
     concurrency: 4
     command: []
-    resources: {}
+    # Default requests so CPU-based HPA can compute utilization when autoscaling is enabled.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
     autoscaling:
       enabled: false
       minReplicas: 1

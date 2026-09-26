@@ -104,3 +104,15 @@ tests:
           content:
             name: POSTGRES_HOST
             value: my-pg.example.com
+
+  - it: uses liveness and readiness probe paths from PR #124 health endpoints
+    template: templates/web/deployment.yaml
+    set:
+      efficientai.secretKey.value: "x"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health/ready

@@ -1,0 +1,85 @@
+suite: migrate job
+templates:
+  - templates/migrate/job.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+tests:
+  - it: omits migrate job by default
+    template: templates/migrate/job.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.auth.password: "pg"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders migrate job with database env like web
+    template: templates/migrate/job.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.auth.password: "pg"
+      efficientai.migrateJob.enabled: true
+      efficientai.migrateJob.includeInRelease: true
+      efficientai.migrateJob.suffix: testrun
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: eai
+      - equal:
+          path: spec.template.spec.containers[0].command[1]
+          value: migrate
+      - equal:
+          path: spec.template.spec.containers[0].env[3].name
+          value: POSTGRES_HOST
+      - equal:
+          path: spec.template.spec.containers[0].env[5].name
+          value: DATABASE_URL
+
+  - it: reuses web extraVolumeMounts for external Postgres TLS
+    template: templates/migrate/job.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.auth.password: "pg"
+      efficientai.migrateJob.enabled: true
+      efficientai.migrateJob.includeInRelease: true
+      efficientai.migrateJob.suffix: testrun
+      efficientai.web.extraVolumeMounts:
+        - name: db-certs
+          mountPath: /secrets/db-keystore
+          readOnly: true
+      efficientai.web.extraVolumes:
+        - name: db-certs
+          secret:
+            secretName: efficientai-postgres-certs
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: db-certs
+            mountPath: /secrets/db-keystore
+            readOnly: true
+
+  - it: omits migrate job when enabled but includeInRelease is false
+    template: templates/migrate/job.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.auth.password: "pg"
+      efficientai.migrateJob.enabled: true
+      efficientai.migrateJob.suffix: testrun
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when enabled without suffix
+    template: templates/migrate/job.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      postgresql.auth.password: "pg"
+      efficientai.migrateJob.enabled: true
+      efficientai.migrateJob.includeInRelease: true
+    asserts:
+      - failedTemplate: {}

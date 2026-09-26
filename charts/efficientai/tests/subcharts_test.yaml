@@ -71,6 +71,23 @@ tests:
           path: data["config.yml"]
           pattern: 'enabled: false'
 
+  - it: renders security and cookie session defaults in config
+    set:
+      efficientai.secretKey.value: "x"
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'frontend_base_url: http://localhost:8000'
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'cookie_session:'
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'csp_enabled: true'
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'health_readiness_cache_seconds: 10'
+
   - it: strips any secrets users mistakenly put under efficientai.config
     set:
       efficientai.secretKey.value: "x"

@@ -112,6 +112,15 @@ tests:
           path: spec.metrics[0].resource.target.averageUtilization
           value: 70
 
+  - it: fails HPA render when autoscaling has no CPU request
+    template: templates/worker-usage/hpa.yaml
+    set:
+      efficientai.secretKey.value: "x"
+      efficientai.workerUsage.autoscaling.enabled: true
+      efficientai.workerUsage.resources.requests.cpu: ""
+    asserts:
+      - failedTemplate: {}
+
   - it: omits HPA when autoscaling is disabled
     template: templates/worker-usage/hpa.yaml
     set:
